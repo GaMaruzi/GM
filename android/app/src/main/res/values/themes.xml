@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!--
+      Tema mínimo de platform para Activities Compose-only.
+      O visual real é controlado por CifrasTheme em ui/theme/Theme.kt.
+    -->
+    <style name="Theme.Cifras" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
+    </style>
+</resources>

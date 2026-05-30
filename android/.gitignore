@@ -1,0 +1,26 @@
+# Gradle
+.gradle/
+build/
+!gradle-wrapper.jar
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Keystores — NUNCA commitar
+*.keystore
+*.jks
+keystore.properties
+
+# Resultados de release (mapping.txt, etc.)
+release/
+
+# Logs
+*.log
+
+# OS
+.DS_Store

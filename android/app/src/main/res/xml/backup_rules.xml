@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Regras de backup automático (Android 6+).
+  Vazio por enquanto — o app não persiste nada. Quando entrar DataStore com a
+  URI da pasta de cifras (Marco 1), revisar se queremos backup dela.
+-->
+<full-backup-content>
+</full-backup-content>
