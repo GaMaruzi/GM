@@ -1,7 +1,6 @@
 # Repositório GM — Instruções para Claude Code
 
-Repo pessoal do Gabriel. Contém o app **Cifras** (Android) em `/android` e
-arquivos pessoais avulsos na raiz (ex: `bolo_de_cenoura.txt`).
+Repo pessoal do Gabriel. Contém o app **Cifras** (Android) em `/android`.
 
 ## Comunicação
 - Responda em **português brasileiro**.
@@ -38,8 +37,7 @@ GM/
 ├── .claude/                    # configs locais do Claude Code (gitignorada)
 ├── CLAUDE.md                   # este arquivo
 ├── README.md
-├── .gitignore
-└── bolo_de_cenoura.txt         # receita pessoal — não mexer
+└── .gitignore
 ```
 
 ## Comandos comuns

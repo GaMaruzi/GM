@@ -25,9 +25,6 @@ cd android
 ./gradlew installDebug
 ```
 
-### Outros arquivos pessoais
-- [`bolo_de_cenoura.txt`](./bolo_de_cenoura.txt) — receita
-
 ## Para colaboradores (Claude Code)
 Ver [`CLAUDE.md`](./CLAUDE.md). Resumo: comunicação em PT-BR, custo zero,
 app offline-only, começar simples.
