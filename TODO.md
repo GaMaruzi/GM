@@ -7,80 +7,49 @@ Xiaomi 14. Marque cada item conforme for fazendo.
 
 ---
 
-## 1. Pré-requisitos no Mac (uma vez só)
+## 1. Pré-requisitos no Mac ✅ FEITO em 2026-06-01
 
-- [ ] **Instalar o Android Studio** (versão Hedgehog ou mais recente)
-  - Baixe em https://developer.android.com/studio
-  - Durante o setup, deixe ele instalar o **Android SDK Platform 35** e o
-    **Android SDK Build-Tools** mais recente.
-- [ ] **Instalar o JDK 17** (o Android Studio costuma trazer um embutido — basta
-      apontar `JAVA_HOME` para ele se for usar `./gradlew` no terminal)
-- [ ] **Aceitar as licenças do SDK** quando o Android Studio pedir
+- [x] Android Studio instalado via `brew install --cask android-studio`
+- [x] OpenJDK 17 via `brew install openjdk@17`
+- [x] `~/.zshrc` configurado com `JAVA_HOME`, `ANDROID_HOME`, `PATH`
+- [x] Licenças do SDK aceitas no wizard inicial do Android Studio
+- [x] Android SDK Platform 35 + Build-Tools (Platform 35 foi auto-baixado pelo AGP no primeiro build)
 
-## 2. Gerar o `gradle-wrapper.jar` (uma vez só)
+## 2. Gerar o `gradle-wrapper.jar` ✅ FEITO
 
-O wrapper jar é binário e não foi commitado ainda. Sem ele, `./gradlew` não roda.
+- [x] `gradle wrapper --gradle-version 8.10.2` (via `brew install gradle`)
+- [x] `gradlew`, `gradlew.bat`, `gradle-wrapper.jar` commitados (commit `77f9bcc`)
 
-- [ ] Abrir o Android Studio
-- [ ] **File → Open** → escolher a pasta `/Users/gabrielmaruzi/GIT_GM/GM/android`
-- [ ] Aguardar o "Gradle sync" terminar (a primeira vez baixa ~500 MB de deps).
-      O wrapper jar é gerado automaticamente em `android/gradle/wrapper/gradle-wrapper.jar`.
-- [ ] Commitar o jar gerado:
-  ```bash
-  cd /Users/gabrielmaruzi/GIT_GM/GM
-  git add android/gradle/wrapper/gradle-wrapper.jar android/gradlew android/gradlew.bat
-  git commit -m "chore(android): adicionar gradle wrapper binário"
-  ```
+## 3. Confirmar que builda no terminal ✅ FEITO
 
-## 3. Confirmar que builda no terminal
+- [x] `./gradlew assembleDebug` → **BUILD SUCCESSFUL** (1m6s no primeiro build)
+- [x] APK em `android/app/build/outputs/apk/debug/app-debug.apk` (24MB)
 
-- [ ] No terminal, na raiz do repo:
-  ```bash
-  cd android
-  ./gradlew assembleDebug
-  ```
-- [ ] Saída esperada: `BUILD SUCCESSFUL`. O APK fica em
-      `android/app/build/outputs/apk/debug/app-debug.apk`.
-- [ ] Rodar os testes unitários:
-  ```bash
-  ./gradlew testDebugUnitTest
-  ```
+## 4. Preparar o Xiaomi 14 ✅ FEITO
 
-## 4. Preparar o Xiaomi 14 (uma vez só)
+- [x] Modo desenvolvedor ativado
+- [x] Depuração USB ativada + autorizada o Mac
+- [x] `adb devices` reconhece como `e26fa033  device` (Xiaomi 14 "houji_global")
 
-- [ ] **Ativar o modo desenvolvedor**:
-  - Ajustes → Sobre o celular → tocar em "Versão MIUI/HyperOS" **7 vezes**
-- [ ] **Ativar Depuração USB**:
-  - Ajustes → Mais ajustes → Opções do desenvolvedor → **Depuração USB** ✅
-  - Logo abaixo: **Instalar via USB** ✅ (Xiaomi exige isto além da depuração)
-- [ ] **Conectar o celular ao Mac via USB**
-- [ ] No celular, autorizar o computador quando aparecer o popup "Permitir depuração USB?"
-  (marcar "Sempre permitir deste computador")
-- [ ] Confirmar que o Mac enxerga o device:
-  ```bash
-  # Caminho do adb se você instalou via Android Studio:
-  ~/Library/Android/sdk/platform-tools/adb devices
-  ```
-  Deve listar algo tipo `XXXXXXXX  device`. Se aparecer `unauthorized`, conferir o popup no celular.
+## 5. Instalar no Xiaomi ✅ FEITO
 
-## 5. Instalar e rodar no Xiaomi
+> ⚠️ **MIUI/HyperOS bloqueia `./gradlew installDebug`** com `INSTALL_FAILED_USER_RESTRICTED`
+> mesmo com todas as flags ativas. **Use `adb install` direto** — funciona perfeitamente.
 
-- [ ] No terminal:
-  ```bash
-  cd /Users/gabrielmaruzi/GIT_GM/GM/android
-  ./gradlew installDebug
-  ```
-- [ ] Ou no Android Studio: dropdown do device no topo → escolher o Xiaomi 14 →
-      botão verde **Run** (▶).
-- [ ] Abrir o app no celular: ícone "Cifras" no launcher (vai aparecer com sufixo
-      "(debug)" no nome do pacote — normal).
-- [ ] **Validar**:
-  - [ ] App abre sem crash
-  - [ ] Tela mostra "Cifras" no topo e o campo "Pesquisar música"
-  - [ ] Digitar algo no campo não dá erro
-  - [ ] Aparece a mensagem "Nenhuma cifra encontrada. (Importação local entra no Marco 1.)"
+Comando padrão para instalar nova versão daqui em diante:
 
-✅ **Se chegou até aqui, a versão 0.1.0 está rodando no seu celular.**
+```bash
+cd /Users/gabrielmaruzi/GIT_GM/GM/android
+./gradlew assembleDebug
+~/Library/Android/sdk/platform-tools/adb install -r app/build/outputs/apk/debug/app-debug.apk
+# (opcional) abrir o app remotamente:
+~/Library/Android/sdk/platform-tools/adb shell monkey -p com.gamaruzi.cifras.debug -c android.intent.category.LAUNCHER 1
+```
+
+- [x] App `com.gamaruzi.cifras.debug` instalado no Xiaomi 14
+- [x] Versão 0.1.0 rodando: TopBar "Cifras" + campo de pesquisa + mensagem vazia
+
+🎉 **Versão 0.1.0 do Cifras está no celular.**
 
 ---
 
