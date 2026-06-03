@@ -83,23 +83,27 @@ setas ▲▼, botão remover, steppers de velocidade (−/valor/+, range
 dialog com candidatas, FAB "Iniciar palco · N" desabilitado quando vazio,
 ícone de lixeira na TopAppBar para limpar tudo com confirmação.
 
-### PR 8 — Stage Mode (UI)
-- [ ] Fullscreen, fundo `#000000`, texto `#F2F2F2`, acordes em `primary`
-- [ ] `WindowCompat.getInsetsController(...).hide(systemBars)` no entrar, restaurar no sair
-- [ ] `keepScreenOn = true` enquanto a tela está ativa
-- [ ] Renderização em fonte mono, escala 28sp ajustável 18-44sp
+### PR 8 — Stage Mode (UI) ✅
+Entregue. `StageScreen` substitui o placeholder com fullscreen
+(`WindowInsetsControllerCompat.hide(systemBars)`), `keepScreenOn=true`,
+paleta fixa (preto/F2F2F2/1ED760 — independente do tema do app), e
+renderiza TEXT/IMAGE/PDF via os mesmos helpers do Detail. Fonte mono
+28sp ajustável 18–44sp em passos de 2. Helper `Context.findActivity()`
+em `ui/common/ContextExt.kt` desce os ContextWrappers até a Activity.
 
-### PR 9 — Stage Mode (interação)
-- [ ] `detectTapGestures(onTap = próxima, onDoubleTap = anterior)`
-      com janela de ~280ms para resolver
-- [ ] Auto-scroll com `LaunchedEffect` + `ScrollState.animateScrollBy`
-      na velocidade pré-configurada da música atual
-- [ ] Chrome (X, contador i/N, controles A−/A+) aparece e some em ~3.2s
-- [ ] Dots de progresso do setlist no rodapé
-- [ ] Overlay de dica inicial "1× próxima · 2× anterior"
+### PR 9 — Stage Mode (interação) ✅
+Entregue na mesma iteração do PR 8. `detectTapGestures` no Box do
+conteúdo (não bloqueia drag → scroll vertical continua) para tap=próxima
+e double-tap=anterior. Auto-scroll: `LaunchedEffect(song.id, velocidade,
+maxValue)` rola `animateScrollBy(velocidade px, tween(1000ms, linear))`
+enquanto não chega ao fim — relê velocidade do setlist (PR 7). Chrome
+(TopBar + BottomBar + dots) com `AnimatedVisibility(fadeIn/fadeOut)`
++ `delay(3200ms)` pra esconder. Reaparece a cada troca de música ou
+ao apertar A−/A+. Dots de progresso (ativo grande verde, vistos cinza,
+futuros translúcidos). Overlay de dica inicial centralizado que some
+após 5s ou ao toque.
 
-Ao fim do Marco 3: subir `versionName` para **1.0.0** e considerar a 1.0
-oficialmente pronta.
+`versionName` subiu para **1.0.0** (versionCode 2).
 
 ## Marco 4 — Refatorar quando doer
 Só quando a dor for real, não preventivamente:

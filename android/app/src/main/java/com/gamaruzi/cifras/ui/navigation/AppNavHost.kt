@@ -167,7 +167,7 @@ fun AppNavHost(appState: AppState = viewModel()) {
         }
 
         composable(Rotas.STAGE) {
-            StageScreen(onBack = { navController.popBackStack() })
+            StageScreen(appState = appState, onBack = { navController.popBackStack() })
         }
 
         composable(Rotas.SETTINGS) {
