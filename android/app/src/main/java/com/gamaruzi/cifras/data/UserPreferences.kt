@@ -24,6 +24,8 @@ class UserPreferences(private val context: Context) {
     private val keyThemeMode = stringPreferencesKey("theme_mode_v1")
     private val keyDynamicColor = booleanPreferencesKey("dynamic_color_v1")
     private val keyScrollOffsets = stringPreferencesKey("scroll_offsets_v1")
+    private val keySetlist = stringPreferencesKey("setlist_v1")
+    private val keySpeeds = stringPreferencesKey("speeds_v1")
 
     val library: Flow<List<LibraryEntry>> = context.dataStore.data.map { prefs ->
         prefs[keyLibrary]
@@ -51,6 +53,17 @@ class UserPreferences(private val context: Context) {
 
     val scrollOffsets: Flow<Map<String, Int>> = context.dataStore.data.map { prefs ->
         ScrollCodec.decode(prefs[keyScrollOffsets].orEmpty())
+    }
+
+    val setlist: Flow<List<String>> = context.dataStore.data.map { prefs ->
+        SetlistCodec.decode(prefs[keySetlist].orEmpty())
+    }
+
+    // Velocidade de auto-scroll por música no Stage Mode, em pixels/segundo.
+    // 0 (ou ausente) = sem auto-scroll. Reusa ScrollCodec porque a estrutura
+    // é idêntica (Map<URI, Int>).
+    val speeds: Flow<Map<String, Int>> = context.dataStore.data.map { prefs ->
+        ScrollCodec.decode(prefs[keySpeeds].orEmpty())
     }
 
     suspend fun addEntries(novas: List<LibraryEntry>) {
@@ -105,6 +118,8 @@ class UserPreferences(private val context: Context) {
             prefs.remove(keyFavorites)
             prefs.remove(keyRecents)
             prefs.remove(keyScrollOffsets)
+            prefs.remove(keySetlist)
+            prefs.remove(keySpeeds)
         }
     }
 
@@ -138,6 +153,49 @@ class UserPreferences(private val context: Context) {
         }
     }
 
+    suspend fun addToSetlist(songId: String) {
+        context.dataStore.edit { prefs ->
+            val atual = SetlistCodec.decode(prefs[keySetlist].orEmpty())
+            prefs[keySetlist] = SetlistCodec.encode(SetlistCodec.add(atual, songId))
+        }
+    }
+
+    suspend fun removeFromSetlist(songId: String) {
+        context.dataStore.edit { prefs ->
+            val atual = SetlistCodec.decode(prefs[keySetlist].orEmpty())
+            prefs[keySetlist] = SetlistCodec.encode(SetlistCodec.remove(atual, songId))
+        }
+    }
+
+    suspend fun moveSetlistUp(index: Int) {
+        context.dataStore.edit { prefs ->
+            val atual = SetlistCodec.decode(prefs[keySetlist].orEmpty())
+            prefs[keySetlist] = SetlistCodec.encode(SetlistCodec.moveUp(atual, index))
+        }
+    }
+
+    suspend fun moveSetlistDown(index: Int) {
+        context.dataStore.edit { prefs ->
+            val atual = SetlistCodec.decode(prefs[keySetlist].orEmpty())
+            prefs[keySetlist] = SetlistCodec.encode(SetlistCodec.moveDown(atual, index))
+        }
+    }
+
+    suspend fun clearSetlist() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(keySetlist)
+            prefs.remove(keySpeeds)
+        }
+    }
+
+    suspend fun setSpeed(songId: String, pxPerSecond: Int) {
+        context.dataStore.edit { prefs ->
+            val mapa = ScrollCodec.decode(prefs[keySpeeds].orEmpty()).toMutableMap()
+            if (pxPerSecond <= 0) mapa.remove(songId) else mapa[songId] = pxPerSecond
+            prefs[keySpeeds] = ScrollCodec.encode(mapa)
+        }
+    }
+
     // Sweep periódico — chamado quando a biblioteca muda — pra evitar que
     // favoritos/recentes apontem para URIs já excluídas (cenário raro hoje
     // porque removeEntry já limpa, mas a verificação por library garante
@@ -156,6 +214,15 @@ class UserPreferences(private val context: Context) {
             val scrollsLimpos = ScrollCodec.pruneOrphans(scrolls, urisValidas)
             if (scrollsLimpos.size != scrolls.size)
                 prefs[keyScrollOffsets] = ScrollCodec.encode(scrollsLimpos)
+
+            val setl = SetlistCodec.decode(prefs[keySetlist].orEmpty())
+            val setlLimpos = SetlistCodec.pruneOrphans(setl, urisValidas)
+            if (setlLimpos.size != setl.size)
+                prefs[keySetlist] = SetlistCodec.encode(setlLimpos)
+
+            val sp = ScrollCodec.decode(prefs[keySpeeds].orEmpty())
+            val spLimpos = ScrollCodec.pruneOrphans(sp, urisValidas)
+            if (spLimpos.size != sp.size) prefs[keySpeeds] = ScrollCodec.encode(spLimpos)
         }
     }
 }

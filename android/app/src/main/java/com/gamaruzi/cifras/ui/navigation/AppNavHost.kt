@@ -159,7 +159,11 @@ fun AppNavHost(appState: AppState = viewModel()) {
         }
 
         composable(Rotas.SETLIST) {
-            SetlistScreen(onBack = { navController.popBackStack() })
+            SetlistScreen(
+                appState = appState,
+                onBack = { navController.popBackStack() },
+                onStartStage = { navController.navigate(Rotas.STAGE) },
+            )
         }
 
         composable(Rotas.STAGE) {

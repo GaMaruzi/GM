@@ -74,12 +74,14 @@ usável de verdade — leitura de cifras locais, com favoritos, configs e busca.
 O recurso que justifica o nome "Tap Cifras". Sozinho em um marco porque é
 complexo e crítico.
 
-### PR 7 — Setlist editor
-- [ ] Tela Setlist real: lista reordenável (drag handle + setas ▲▼)
-- [ ] Controle de velocidade por música (− valor +, 0 = off)
-- [ ] Botão "Adicionar cifras" — segunda lista de candidatas
-- [ ] DataStore `tc:setlist` (List<String>) + `tc:speeds` (Map<String, Int>)
-- [ ] Botão "Iniciar palco · {N}" no rodapé, desabilitado se vazio
+### PR 7 — Setlist editor ✅
+Entregue. `SetlistCodec` (puro, com `moveUp`/`moveDown`/`add`/`remove`/
+`pruneOrphans`). DataStore: `setlist_v1` e `speeds_v1` — speeds reusa o
+`ScrollCodec` (mesma estrutura Map<URI,Int>). Tela com lista ordenada,
+setas ▲▼, botão remover, steppers de velocidade (−/valor/+, range
+0–120 px/s em passos de 10, 0=off), botão "Adicionar cifras" abrindo
+dialog com candidatas, FAB "Iniciar palco · N" desabilitado quando vazio,
+ícone de lixeira na TopAppBar para limpar tudo com confirmação.
 
 ### PR 8 — Stage Mode (UI)
 - [ ] Fullscreen, fundo `#000000`, texto `#F2F2F2`, acordes em `primary`

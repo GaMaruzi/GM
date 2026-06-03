@@ -58,6 +58,12 @@ class AppState(application: Application) : AndroidViewModel(application) {
     val scrollOffsets: StateFlow<Map<String, Int>> = prefs.scrollOffsets
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
+    val setlist: StateFlow<List<String>> = prefs.setlist
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val speeds: StateFlow<Map<String, Int>> = prefs.speeds
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
     private val _lastAddResult = MutableStateFlow<AddResult?>(null)
     val lastAddResult: StateFlow<AddResult?> = _lastAddResult.asStateFlow()
 
@@ -174,6 +180,30 @@ class AppState(application: Application) : AndroidViewModel(application) {
 
     fun saveScrollOffset(songId: String, offset: Int) {
         viewModelScope.launch { prefs.saveScrollOffset(songId, offset) }
+    }
+
+    fun addToSetlist(songId: String) {
+        viewModelScope.launch { prefs.addToSetlist(songId) }
+    }
+
+    fun removeFromSetlist(songId: String) {
+        viewModelScope.launch { prefs.removeFromSetlist(songId) }
+    }
+
+    fun moveSetlistUp(index: Int) {
+        viewModelScope.launch { prefs.moveSetlistUp(index) }
+    }
+
+    fun moveSetlistDown(index: Int) {
+        viewModelScope.launch { prefs.moveSetlistDown(index) }
+    }
+
+    fun clearSetlist() {
+        viewModelScope.launch { prefs.clearSetlist() }
+    }
+
+    fun setSpeed(songId: String, pxPerSecond: Int) {
+        viewModelScope.launch { prefs.setSpeed(songId, pxPerSecond) }
     }
 
     fun song(id: String): Song? = _songs.value.find { it.id == id }
