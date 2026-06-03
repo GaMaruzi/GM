@@ -59,10 +59,13 @@ no menu da Search (não duplicada aqui); o botão "Limpar biblioteca"
 existe com dialog de confirmação. `BuildConfig.VERSION_NAME` exposto via
 `buildFeatures.buildConfig = true`.
 
-### PR 6 — Posição de scroll por música
-- [ ] DataStore mapa `songId → scrollOffset`
-- [ ] Detail restaura no resume, salva no scroll (debounce 500ms)
-- [ ] Limpar entradas de IDs que não existem mais (quando a pasta muda)
+### PR 6 — Posição de scroll por música ✅
+Entregue. `ScrollCodec` persiste `Map<songId, offsetPx>` em DataStore com
+mesma convenção de codec dos outros (separador U+0001). `DetailScreen`
+restaura ao montar (re-aplica se `maxValue` cresce — necessário para o
+PdfContent que mede tudo depois). Salva com `snapshotFlow + debounce(500ms)`.
+`pruneOrphans` é chamado ao mudar a biblioteca; `removeEntry` também
+limpa o offset da cifra excluída.
 
 Ao fim do Marco 2: subir `versionName` para **0.3.0**. O app já é
 usável de verdade — leitura de cifras locais, com favoritos, configs e busca.

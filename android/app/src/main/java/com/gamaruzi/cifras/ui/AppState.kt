@@ -55,6 +55,9 @@ class AppState(application: Application) : AndroidViewModel(application) {
     val dynamicColor: StateFlow<Boolean> = prefs.dynamicColor
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    val scrollOffsets: StateFlow<Map<String, Int>> = prefs.scrollOffsets
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
     private val _lastAddResult = MutableStateFlow<AddResult?>(null)
     val lastAddResult: StateFlow<AddResult?> = _lastAddResult.asStateFlow()
 
@@ -167,6 +170,10 @@ class AppState(application: Application) : AndroidViewModel(application) {
 
     fun setDynamicColor(enabled: Boolean) {
         viewModelScope.launch { prefs.setDynamicColor(enabled) }
+    }
+
+    fun saveScrollOffset(songId: String, offset: Int) {
+        viewModelScope.launch { prefs.saveScrollOffset(songId, offset) }
     }
 
     fun song(id: String): Song? = _songs.value.find { it.id == id }

@@ -44,6 +44,7 @@ fun AppNavHost(appState: AppState = viewModel()) {
     val loading by appState.loading.collectAsStateWithLifecycle()
     val favorites by appState.favorites.collectAsStateWithLifecycle()
     val recents by appState.recents.collectAsStateWithLifecycle()
+    val scrollOffsets by appState.scrollOffsets.collectAsStateWithLifecycle()
     val lastAddResult by appState.lastAddResult.collectAsStateWithLifecycle()
 
     // Photo Picker do sistema (API agnóstica a versão do Android; Google fornece
@@ -148,6 +149,8 @@ fun AppNavHost(appState: AppState = viewModel()) {
                 DetailScreen(
                     song = song,
                     isFavorite = song.id in favorites,
+                    initialScrollOffset = scrollOffsets[song.id] ?: 0,
+                    onScrollPersist = { offset -> appState.saveScrollOffset(song.id, offset) },
                     onBack = { navController.popBackStack() },
                     onToggleFavorite = { appState.toggleFavorite(song.id) },
                     onPlayStage = { navController.navigate(Rotas.STAGE) },

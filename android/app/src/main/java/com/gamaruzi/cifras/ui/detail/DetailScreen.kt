@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -44,7 +45,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,12 +69,16 @@ import com.gamaruzi.cifras.data.Section
 import com.gamaruzi.cifras.data.Song
 import com.gamaruzi.cifras.data.SongFormat
 import com.gamaruzi.cifras.domain.Theory
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
 fun DetailScreen(
     song: Song,
     isFavorite: Boolean,
+    initialScrollOffset: Int,
+    onScrollPersist: (Int) -> Unit,
     onBack: () -> Unit,
     onToggleFavorite: () -> Unit,
     onPlayStage: () -> Unit,
@@ -88,6 +95,29 @@ fun DetailScreen(
     val prefereFlat = Theory.keyPrefersFlat(song.key)
     val tomExibicao = remember(song.key, semis) {
         Theory.transposeKey(song.key, semis, prefereFlat)
+    }
+
+    // ScrollState único compartilhado pelos 3 renderizadores (TEXT/IMAGE/PDF).
+    // Recriado quando troca de música, restaurado com o offset persistido.
+    val scrollState = rememberScrollState(initial = initialScrollOffset)
+    val onScrollPersistAtual by rememberUpdatedState(onScrollPersist)
+
+    // Restaura o scroll quando o conteúdo termina de medir.
+    // PdfContent só conhece a altura total após renderizar todas as páginas;
+    // sem este efeito o scrollTo do rememberScrollState pode ser truncado
+    // contra um maxValue=0 e ficar em 0. Re-aplicar quando maxValue cresce
+    // resolve sem heurística de timer.
+    LaunchedEffect(song.id, scrollState.maxValue) {
+        if (initialScrollOffset > 0 && scrollState.value < initialScrollOffset) {
+            scrollState.scrollTo(initialScrollOffset.coerceAtMost(scrollState.maxValue))
+        }
+    }
+
+    // Persiste o offset com debounce de 500ms. Evita gravar a cada pixel.
+    LaunchedEffect(song.id) {
+        snapshotFlow { scrollState.value }
+            .debounce(500)
+            .collect { offset -> onScrollPersistAtual(offset) }
     }
 
     Scaffold(
@@ -178,20 +208,26 @@ fun DetailScreen(
             }
 
             when (song.format) {
-                SongFormat.TEXT -> TextContent(song, fontSize.sp, semis, prefereFlat)
-                SongFormat.IMAGE -> ImageContent(song)
-                SongFormat.PDF -> PdfContent(song)
+                SongFormat.TEXT -> TextContent(song, fontSize.sp, semis, prefereFlat, scrollState)
+                SongFormat.IMAGE -> ImageContent(song, scrollState)
+                SongFormat.PDF -> PdfContent(song, scrollState)
             }
         }
     }
 }
 
 @Composable
-private fun TextContent(song: Song, fontSize: TextUnit, semis: Int, prefereFlat: Boolean) {
+private fun TextContent(
+    song: Song,
+    fontSize: TextUnit,
+    semis: Int,
+    prefereFlat: Boolean,
+    scrollState: ScrollState,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
             .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 120.dp),
     ) {
         if (song.capo > 0) {
@@ -220,11 +256,11 @@ private fun TextContent(song: Song, fontSize: TextUnit, semis: Int, prefereFlat:
 }
 
 @Composable
-private fun ImageContent(song: Song) {
+private fun ImageContent(song: Song, scrollState: ScrollState) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
             .padding(horizontal = 12.dp, vertical = 4.dp),
     ) {
         AsyncImage(
@@ -245,7 +281,7 @@ private fun ImageContent(song: Song) {
 }
 
 @Composable
-private fun PdfContent(song: Song) {
+private fun PdfContent(song: Song, scrollState: ScrollState) {
     val context = LocalContext.current
     val density = LocalDensity.current
     val widthDp = LocalConfiguration.current.screenWidthDp.dp
@@ -272,7 +308,7 @@ private fun PdfContent(song: Song) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 12.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {

@@ -23,6 +23,7 @@ class UserPreferences(private val context: Context) {
     private val keyRecents = stringPreferencesKey("recents_v1")
     private val keyThemeMode = stringPreferencesKey("theme_mode_v1")
     private val keyDynamicColor = booleanPreferencesKey("dynamic_color_v1")
+    private val keyScrollOffsets = stringPreferencesKey("scroll_offsets_v1")
 
     val library: Flow<List<LibraryEntry>> = context.dataStore.data.map { prefs ->
         prefs[keyLibrary]
@@ -46,6 +47,10 @@ class UserPreferences(private val context: Context) {
     // Padrão false: identidade verde Spotify (ver Theme.kt). Toggle vira opt-in.
     val dynamicColor: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[keyDynamicColor] ?: false
+    }
+
+    val scrollOffsets: Flow<Map<String, Int>> = context.dataStore.data.map { prefs ->
+        ScrollCodec.decode(prefs[keyScrollOffsets].orEmpty())
     }
 
     suspend fun addEntries(novas: List<LibraryEntry>) {
@@ -99,6 +104,7 @@ class UserPreferences(private val context: Context) {
             prefs.remove(keyLibrary)
             prefs.remove(keyFavorites)
             prefs.remove(keyRecents)
+            prefs.remove(keyScrollOffsets)
         }
     }
 
@@ -124,6 +130,14 @@ class UserPreferences(private val context: Context) {
         context.dataStore.edit { prefs -> prefs[keyDynamicColor] = enabled }
     }
 
+    suspend fun saveScrollOffset(songId: String, offset: Int) {
+        context.dataStore.edit { prefs ->
+            val mapa = ScrollCodec.decode(prefs[keyScrollOffsets].orEmpty()).toMutableMap()
+            if (offset <= 0) mapa.remove(songId) else mapa[songId] = offset
+            prefs[keyScrollOffsets] = ScrollCodec.encode(mapa)
+        }
+    }
+
     // Sweep periódico — chamado quando a biblioteca muda — pra evitar que
     // favoritos/recentes apontem para URIs já excluídas (cenário raro hoje
     // porque removeEntry já limpa, mas a verificação por library garante
@@ -137,6 +151,11 @@ class UserPreferences(private val context: Context) {
             val rec = RecentsCodec.decode(prefs[keyRecents].orEmpty())
             val recLimpos = RecentsCodec.pruneOrphans(rec, urisValidas)
             if (recLimpos.size != rec.size) prefs[keyRecents] = RecentsCodec.encode(recLimpos)
+
+            val scrolls = ScrollCodec.decode(prefs[keyScrollOffsets].orEmpty())
+            val scrollsLimpos = ScrollCodec.pruneOrphans(scrolls, urisValidas)
+            if (scrollsLimpos.size != scrolls.size)
+                prefs[keyScrollOffsets] = ScrollCodec.encode(scrollsLimpos)
         }
     }
 }
