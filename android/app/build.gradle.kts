@@ -64,6 +64,10 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
 
+    // Persistência local + Storage Access Framework
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.documentfile)
+
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 

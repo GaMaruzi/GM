@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,7 +21,6 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -71,7 +71,7 @@ fun EmptyScreen(onPickFolder: () -> Unit) {
             Button(
                 onClick = onPickFolder,
                 modifier = Modifier.heightIn(min = 56.dp).padding(horizontal = 16.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 24.dp),
+                contentPadding = PaddingValues(horizontal = 24.dp),
             ) {
                 Icon(Icons.Filled.Folder, contentDescription = null)
                 Spacer(Modifier.size(12.dp))
@@ -80,7 +80,6 @@ fun EmptyScreen(onPickFolder: () -> Unit) {
 
             Spacer(Modifier.weight(1f))
 
-            // Rodapé de privacidade
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -108,7 +107,6 @@ fun EmptyScreen(onPickFolder: () -> Unit) {
 @Composable
 private fun Ilustracao() {
     Box(modifier = Modifier.size(168.dp), contentAlignment = Alignment.Center) {
-        // Card tonal rotacionado
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -116,14 +114,12 @@ private fun Ilustracao() {
                 .clip(RoundedCornerShape(48.dp))
                 .background(MaterialTheme.colorScheme.primaryContainer)
         )
-        // Ícone de pasta centralizado
         Icon(
             imageVector = Icons.Outlined.FolderOpen,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier.size(88.dp),
         )
-        // Badge nota musical (canto superior direito)
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.TopEnd,

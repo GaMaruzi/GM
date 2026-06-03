@@ -3,7 +3,6 @@ package com.gamaruzi.cifras.ui.detail
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,6 +23,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -42,11 +42,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gamaruzi.cifras.data.Line
@@ -57,13 +56,14 @@ import com.gamaruzi.cifras.data.Song
 @Composable
 fun DetailScreen(
     song: Song,
+    rawContent: String?,
     isFavorite: Boolean,
     onBack: () -> Unit,
     onToggleFavorite: () -> Unit,
     onPlayStage: () -> Unit,
 ) {
     var fontSize by remember { mutableIntStateOf(16) }
-    // Transposição visual ainda não está implementada (Marco 2). O stepper
+    // Transposição visual ainda não está implementada (PR 4). O stepper
     // mostra o tom original; +/- ainda não recalculam.
     var semis by remember { mutableIntStateOf(0) }
 
@@ -111,7 +111,6 @@ fun DetailScreen(
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
 
-            // Barra de leitura: transpose + tamanho de fonte
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -153,7 +152,6 @@ fun DetailScreen(
                 }
             }
 
-            // Corpo da cifra (monospace, scroll vertical)
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -165,11 +163,11 @@ fun DetailScreen(
                     Spacer(Modifier.height(16.dp))
                 }
 
-                song.sections.forEachIndexed { index, section ->
-                    if (index > 0) Spacer(Modifier.height(20.dp))
-                    SectionTag(section.tag)
-                    Spacer(Modifier.height(6.dp))
-                    SectionBody(section, fontSize.sp)
+                if (song.sections.isNotEmpty()) {
+                    SongComSections(song, fontSize.sp)
+                } else {
+                    // PR 1: ainda não temos parser, então só mostra o conteúdo bruto.
+                    SongComConteudoBruto(rawContent, fontSize.sp)
                 }
 
                 Spacer(Modifier.height(20.dp))
@@ -178,10 +176,38 @@ fun DetailScreen(
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth(),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    textAlign = TextAlign.Center,
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SongComSections(song: Song, fontSize: TextUnit) {
+    song.sections.forEachIndexed { index, section ->
+        if (index > 0) Spacer(Modifier.height(20.dp))
+        if (section.tag.isNotBlank()) {
+            SectionTag(section.tag)
+            Spacer(Modifier.height(6.dp))
+        }
+        section.lines.forEach { line -> LineRow(line, fontSize) }
+    }
+}
+
+@Composable
+private fun SongComConteudoBruto(rawContent: String?, fontSize: TextUnit) {
+    if (rawContent == null) {
+        Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else {
+        Text(
+            text = rawContent,
+            fontSize = fontSize,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 
@@ -246,18 +272,7 @@ private fun SectionTag(tag: String) {
 }
 
 @Composable
-private fun SectionBody(section: Section, fontSize: androidx.compose.ui.unit.TextUnit) {
-    Column {
-        section.lines.forEach { line ->
-            LineRow(line, fontSize)
-        }
-    }
-}
-
-@Composable
-private fun LineRow(line: Line, fontSize: androidx.compose.ui.unit.TextUnit) {
-    // Cada linha pode ter acordes (linha de cima), letra (linha de baixo) ou ambos.
-    // Renderizamos com fonte mono para preservar o alinhamento por coluna.
+private fun LineRow(line: Line, fontSize: TextUnit) {
     if (line.chords.isNotBlank()) {
         Text(
             text = line.chords,

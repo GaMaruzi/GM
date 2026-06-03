@@ -10,6 +10,8 @@ core-ktx = "1.15.0"
 lifecycle = "2.8.7"
 activity-compose = "1.9.3"
 navigation-compose = "2.8.5"
+datastore = "1.1.1"
+documentfile = "1.0.1"
 
 # Compose
 compose-bom = "2024.12.01"
@@ -40,6 +42,10 @@ androidx-compose-material-icons-extended = { group = "androidx.compose.material"
 
 # Navegação
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation-compose" }
+
+# Persistência local + SAF
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
+androidx-documentfile = { group = "androidx.documentfile", name = "documentfile", version.ref = "documentfile" }
 
 # Testes
 junit = { group = "junit", name = "junit", version.ref = "junit" }
