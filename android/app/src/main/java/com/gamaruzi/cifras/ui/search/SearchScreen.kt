@@ -24,7 +24,9 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
@@ -39,6 +41,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -52,26 +56,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gamaruzi.cifras.data.Song
+import com.gamaruzi.cifras.data.SongFormat
 
 enum class SearchTab { TODAS, FAVORITAS, RECENTES }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
-    folderName: String,
+    bibliotecaSize: Int,
     songs: List<Song>,
     loading: Boolean,
     favorites: Set<String>,
     recents: List<String>,
+    snackbarHostState: SnackbarHostState,
     onOpenSong: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     onOpenSettings: () -> Unit,
-    onChangeFolder: () -> Unit,
+    onAddImages: () -> Unit,
+    onAddDocs: () -> Unit,
     onStartStage: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
@@ -90,6 +97,7 @@ fun SearchScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onStartStage,
@@ -126,12 +134,18 @@ fun SearchScreen(
                                 onDismissRequest = { menuExpanded = false },
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("Configurações") },
-                                    onClick = { menuExpanded = false; onOpenSettings() },
+                                    text = { Text("Adicionar imagem") },
+                                    leadingIcon = { Icon(Icons.Filled.Image, contentDescription = null) },
+                                    onClick = { menuExpanded = false; onAddImages() },
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Trocar pasta") },
-                                    onClick = { menuExpanded = false; onChangeFolder() },
+                                    text = { Text("Adicionar PDF/TXT") },
+                                    leadingIcon = { Icon(Icons.Filled.Description, contentDescription = null) },
+                                    onClick = { menuExpanded = false; onAddDocs() },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Configurações") },
+                                    onClick = { menuExpanded = false; onOpenSettings() },
                                 )
                             }
                         }
@@ -151,7 +165,7 @@ fun SearchScreen(
                 )
             }
 
-            // Status da pasta
+            // Status da biblioteca
             Row(
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 6.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -164,7 +178,7 @@ fun SearchScreen(
                 )
                 Spacer(Modifier.size(7.dp))
                 Text(
-                    text = "$folderName · ${songs.size} cifras indexadas",
+                    text = "Sua biblioteca · $bibliotecaSize ${if (bibliotecaSize == 1) "cifra" else "cifras"}",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -186,7 +200,6 @@ fun SearchScreen(
                 }
             }
 
-            // Lista (ou loading/estado vazio)
             if (loading && songs.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -208,7 +221,7 @@ fun SearchScreen(
                             text = when {
                                 query.isNotEmpty() -> "Nada encontrado para \"$query\"."
                                 tab == SearchTab.FAVORITAS -> "Nenhuma favorita ainda. Toque na ★ de uma cifra."
-                                songs.isEmpty() -> "Nenhum arquivo .txt na pasta escolhida."
+                                songs.isEmpty() -> "Biblioteca vazia. Use o menu para adicionar cifras."
                                 else -> "Nada por aqui ainda."
                             },
                             fontSize = 16.sp,
@@ -238,7 +251,7 @@ fun SearchScreen(
 private fun Chip(
     label: String,
     selected: Boolean,
-    leading: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    leading: ImageVector? = null,
     onClick: () -> Unit,
 ) {
     FilterChip(
@@ -268,7 +281,6 @@ private fun SongItem(
                 .padding(start = 24.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Ícone tipo arquivo
             Box(
                 modifier = Modifier
                     .size(40.dp)
@@ -277,7 +289,7 @@ private fun SongItem(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    Icons.Filled.Description,
+                    iconeDoFormato(song.format),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(22.dp),
@@ -293,7 +305,7 @@ private fun SongItem(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "${song.artist} · ${song.ext.uppercase()} · tom ${song.key}",
+                    text = subtitulo(song),
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -314,4 +326,15 @@ private fun SongItem(
             }
         }
     }
+}
+
+private fun iconeDoFormato(format: SongFormat): ImageVector = when (format) {
+    SongFormat.TEXT -> Icons.Filled.Description
+    SongFormat.IMAGE -> Icons.Filled.Image
+    SongFormat.PDF -> Icons.Filled.PictureAsPdf
+}
+
+private fun subtitulo(song: Song): String = when (song.format) {
+    SongFormat.TEXT -> "${song.artist} · ${song.ext.uppercase()} · tom ${song.key}"
+    SongFormat.IMAGE, SongFormat.PDF -> "${song.artist} · ${song.ext.uppercase()}"
 }

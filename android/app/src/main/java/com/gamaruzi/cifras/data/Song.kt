@@ -1,5 +1,11 @@
 package com.gamaruzi.cifras.data
 
+// Formato físico do arquivo da cifra. Determina como Detail e Stage renderizam.
+// - TEXT: parsing por seções/linhas (CifraTextParser); transposição e fonte ativas
+// - IMAGE: renderiza bitmap via Coil; sem transposição/fonte
+// - PDF:   renderiza páginas via PdfRenderer nativo; sem transposição/fonte
+enum class SongFormat { TEXT, IMAGE, PDF }
+
 data class Song(
     val id: String,
     val file: String,
@@ -9,6 +15,8 @@ data class Song(
     val capo: Int,
     val genre: String,
     val ext: String,
+    val format: SongFormat,
+    val sizeBytes: Long,
     val sections: List<Section>
 )
 

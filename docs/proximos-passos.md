@@ -24,21 +24,16 @@ Tudo entregue no commit `a0d7389` em 2026-06-02.
 ## Marco 2 — MVP funcional (Scope B)
 Quebrado em PRs pequenos. Ordem sugerida segue dependências (cada um habilita o próximo).
 
-### PR 1 — SAF picker + DataStore para a URI da pasta
-- [ ] `ActivityResultContracts.OpenDocumentTree` no botão "Escolher pasta"
-- [ ] `takePersistableUriPermission` (senão a URI vira inválida depois de reboot)
-- [ ] DataStore Preferences guardando a URI + nome amigável da pasta
-- [ ] `AppState.pickFolderMock()` vira `pickFolder(uri: Uri)` real
-- [ ] Trocar pasta nas Configurações funciona
+### ~~PR 1 — SAF picker + DataStore para a URI da pasta~~ ✅ (substituído)
+Originalmente o app guardava **uma URI de pasta** (`OpenDocumentTree`) e indexava
+todos os `.txt` dela. Substituído em 2026-06-03 pelo modelo **biblioteca interna**
+(ver PR C "multimodal"): o usuário adiciona arquivos individualmente via Photo
+Picker e `OpenMultipleDocuments`, cada URI é persistida via
+`takePersistableUriPermission` em uma lista no DataStore.
 
-### PR 2 — Parser `.txt` → `Song`
-- [ ] `TxtCifraParser` que lê arquivos via `DocumentFile.fromTreeUri()`
-- [ ] Heurística de linha de acordes:
-      `^[A-G][#b]?(m|maj|min|sus|dim|aug|add|°|/|\d)*$` (ver `docs/design/render.jsx`)
-- [ ] Detecção de tags de seção (INTRO/VERSO/REFRÃO/PONTE)
-- [ ] Detecção de tom inicial (primeira linha de acordes) + capotraste se sinalizado
-- [ ] Cache: parse 1x por arquivo, invalidar quando `lastModified` muda
-- [ ] Lista da Search lê do parser real, não do `SampleSongs`
+### PR 2 — Parser `.txt` → `Song` ✅
+Implementado em `94ccfb0`. Continua válido após o refactor multimodal — o
+`CifraTextParser` roda quando `Song.format == TEXT`.
 
 ### PR 3 — Favoritos + Recentes persistentes
 - [ ] DataStore para `Set<String>` de favoritos
@@ -53,9 +48,11 @@ Quebrado em PRs pequenos. Ordem sugerida segue dependências (cada um habilita o
 - [ ] Persistir transposição por música? **Decisão em aberto** — o design não fala. Default: não persistir.
 
 ### PR 5 — Settings funcional
-- [ ] Linha "Pasta de cifras" mostra nome + contagem + botão "Trocar"
+- [ ] Lista da biblioteca com botão "remover" por entry + botão "Limpar tudo"
+- [ ] Contadores por formato (X imagens · Y PDFs · Z TXTs)
 - [ ] Segmented control de tema: Sistema / Claro / Escuro (persiste)
-- [ ] Toggle "Cores dinâmicas" (persiste)
+- [ ] Toggle "Cores dinâmicas (Material You)" — opt-in; padrão atual é OFF
+      (verde Spotify fixo, ver `Theme.kt`)
 - [ ] Card de privacidade ("Este app não acessa a internet…")
 - [ ] Item "Sobre" com versão (lê de `BuildConfig.VERSION_NAME`)
 
@@ -113,8 +110,12 @@ Só quando a dor for real, não preventivamente:
 - Adicionar SDK que faça chamada de rede em background
 
 ## Ideias parqueadas (sem prioridade)
-- Suporte a `.pdf` via `PdfRenderer` nativo
+- ~~Suporte a `.pdf` via `PdfRenderer` nativo~~ ✅ entregue no multimodal
 - Auto-detecção de tom a partir do conteúdo (não só primeira linha)
 - Compartilhar cifra como imagem (mas sem analytics no compartilhamento!)
 - Exportar setlist para PDF
 - Sincronização **opcional** com pen drive USB OTG (ainda sem rede)
+- Login/senha + backup da biblioteca (quando houver) — habilita migração
+  para celular novo; até lá, troca de aparelho requer re-selecionar arquivos
+- Zoom (pinch) nas imagens/PDF dentro do Detail
+- Crop/rotate de imagens recém-adicionadas para enquadrar melhor a cifra

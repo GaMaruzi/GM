@@ -2,45 +2,67 @@ package com.gamaruzi.cifras.data
 
 import android.content.Context
 import android.net.Uri
-import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class CifrasRepository(private val context: Context) {
 
-    // Lista + parseia todas as cifras .txt da pasta escolhida.
-    // O parsing roda em IO; para um conjunto típico (~dezenas a centenas de
-    // arquivos pequenos) é desprezível. Se virar problema, mover pro PR 6 com
-    // index incremental em DataStore/Room.
-    suspend fun listSongs(treeUri: Uri): List<Song> = withContext(Dispatchers.IO) {
-        val raiz = DocumentFile.fromTreeUri(context, treeUri) ?: return@withContext emptyList()
-        raiz.listFiles()
-            .asSequence()
-            .filter { it.isFile && it.name?.endsWith(".txt", ignoreCase = true) == true }
-            .sortedBy { it.name?.lowercase() }
-            .mapNotNull { doc -> parseSong(doc) }
-            .toList()
+    // Carrega Songs para cada entry da biblioteca. Para TEXT, parseia o
+    // conteúdo (acordes/seções); para IMAGE/PDF, devolve Song sem sections
+    // — a renderização é tratada pelo DetailScreen via Coil/PdfRenderer.
+    // Roda em IO; mesmo com centenas de entries continua tranquilo porque
+    // só TEXT realmente lê bytes do arquivo (img/pdf só metadados).
+    suspend fun loadLibrary(library: List<LibraryEntry>): List<Song> =
+        withContext(Dispatchers.IO) {
+            library.mapNotNull { entry -> toSong(entry) }
+        }
+
+    private fun toSong(entry: LibraryEntry): Song? {
+        val (title, artist) = splitTitleArtist(entry.displayName)
+        val ext = entry.displayName.substringAfterLast('.', "")
+            .ifEmpty { defaultExt(entry.format) }
+
+        return when (entry.format) {
+            SongFormat.TEXT -> {
+                val raw = readTextContent(Uri.parse(entry.uri)) ?: return null
+                val parsed = CifraTextParser.parse(raw)
+                Song(
+                    id = entry.uri,
+                    file = entry.displayName,
+                    title = title,
+                    artist = artist,
+                    key = parsed.key,
+                    capo = parsed.capo,
+                    genre = "",
+                    ext = ext,
+                    format = SongFormat.TEXT,
+                    sizeBytes = entry.sizeBytes,
+                    sections = parsed.sections,
+                )
+            }
+            SongFormat.IMAGE, SongFormat.PDF -> Song(
+                id = entry.uri,
+                file = entry.displayName,
+                title = title,
+                artist = artist,
+                key = "—",
+                capo = 0,
+                genre = "",
+                ext = ext,
+                format = entry.format,
+                sizeBytes = entry.sizeBytes,
+                sections = emptyList(),
+            )
+        }
     }
 
-    private fun parseSong(doc: DocumentFile): Song? {
-        val fileName = doc.name ?: return null
-        val raw = readContentInternal(doc.uri) ?: return null
-        val parsed = CifraTextParser.parse(raw)
-        val (title, artist) = splitTitleArtist(fileName)
-        return Song(
-            id = doc.uri.toString(),
-            file = fileName,
-            title = title,
-            artist = artist,
-            key = parsed.key,
-            capo = parsed.capo,
-            genre = "",
-            ext = fileName.substringAfterLast('.', "txt"),
-            sections = parsed.sections,
-        )
+    private fun defaultExt(format: SongFormat): String = when (format) {
+        SongFormat.TEXT -> "txt"
+        SongFormat.PDF -> "pdf"
+        SongFormat.IMAGE -> "img"
     }
 
-    private fun readContentInternal(fileUri: Uri): String? =
+    private fun readTextContent(fileUri: Uri): String? =
         runCatching {
             context.contentResolver.openInputStream(fileUri)?.use { input ->
                 input.bufferedReader(Charsets.UTF_8).readText()

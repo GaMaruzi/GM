@@ -1,10 +1,13 @@
 package com.gamaruzi.cifras.ui.navigation
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -34,55 +37,98 @@ object Rotas {
 @Composable
 fun AppNavHost(appState: AppState = viewModel()) {
     val navController = rememberNavController()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    val folder by appState.folderName.collectAsStateWithLifecycle()
+    val library by appState.library.collectAsStateWithLifecycle()
     val songs by appState.songs.collectAsStateWithLifecycle()
     val loading by appState.loading.collectAsStateWithLifecycle()
     val favorites by appState.favorites.collectAsStateWithLifecycle()
     val recents by appState.recents.collectAsStateWithLifecycle()
+    val lastAddResult by appState.lastAddResult.collectAsStateWithLifecycle()
 
-    val pickFolderLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) {
-            appState.setFolder(uri)
-            navController.navigate(Rotas.SEARCH) {
-                popUpTo(Rotas.EMPTY) { inclusive = true }
-                launchSingleTop = true
-            }
+    // Photo Picker do sistema (API agnóstica a versão do Android; Google fornece
+    // backport via Play Services no Android 11-12 e usa o picker nativo em 13+).
+    // Não exige permissão READ_MEDIA_IMAGES — funciona em sandbox.
+    val pickImagesLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 20)
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            appState.addUris(uris)
+            navegarPraBiblioteca(navController)
         }
     }
 
-    LaunchedEffect(folder) {
-        if (folder == null && navController.currentDestination?.route != Rotas.EMPTY) {
+    // OpenDocument para PDF e TXT — janela do sistema permite ao usuário
+    // navegar em Downloads, Documents, Drive, etc.
+    val pickDocsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            appState.addUris(uris)
+            navegarPraBiblioteca(navController)
+        }
+    }
+
+    // Feedback de adição em lote (qts entraram, qts foram ignoradas).
+    LaunchedEffect(lastAddResult) {
+        val r = lastAddResult ?: return@LaunchedEffect
+        val partes = buildList {
+            if (r.adicionadas > 0) add("${r.adicionadas} adicionada(s)")
+            if (r.ignoradasPorTamanho > 0) add("${r.ignoradasPorTamanho} grande(s) demais")
+            if (r.ignoradasPorFormato > 0) add("${r.ignoradasPorFormato} sem suporte")
+        }
+        if (partes.isNotEmpty()) snackbarHostState.showSnackbar(partes.joinToString(" · "))
+        appState.consumeAddResult()
+    }
+
+    val startDestination = if (library.isEmpty()) Rotas.EMPTY else Rotas.SEARCH
+
+    LaunchedEffect(library.isEmpty()) {
+        // Quando a biblioteca esvazia (usuário removeu tudo), volta pra Empty.
+        if (library.isEmpty() && navController.currentDestination?.route != Rotas.EMPTY) {
             navController.navigate(Rotas.EMPTY) {
                 popUpTo(0) { inclusive = true }
             }
         }
     }
 
-    val startDestination = if (folder == null) Rotas.EMPTY else Rotas.SEARCH
-
     NavHost(navController = navController, startDestination = startDestination) {
 
         composable(Rotas.EMPTY) {
-            EmptyScreen(onPickFolder = { pickFolderLauncher.launch(null) })
+            EmptyScreen(
+                onPickImages = {
+                    pickImagesLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
+                onPickDocs = {
+                    pickDocsLauncher.launch(arrayOf("application/pdf", "text/plain"))
+                },
+            )
         }
 
         composable(Rotas.SEARCH) {
             SearchScreen(
-                folderName = folder ?: "—",
+                bibliotecaSize = library.size,
                 songs = songs,
                 loading = loading,
                 favorites = favorites,
                 recents = recents,
+                snackbarHostState = snackbarHostState,
                 onOpenSong = { id ->
                     appState.markRecent(id)
                     navController.navigate(Rotas.detail(id))
                 },
                 onToggleFavorite = appState::toggleFavorite,
                 onOpenSettings = { navController.navigate(Rotas.SETTINGS) },
-                onChangeFolder = { pickFolderLauncher.launch(null) },
+                onAddImages = {
+                    pickImagesLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
+                onAddDocs = {
+                    pickDocsLauncher.launch(arrayOf("application/pdf", "text/plain"))
+                },
                 onStartStage = { navController.navigate(Rotas.SETLIST) },
             )
         }
@@ -117,6 +163,15 @@ fun AppNavHost(appState: AppState = viewModel()) {
 
         composable(Rotas.SETTINGS) {
             SettingsScreen(onBack = { navController.popBackStack() })
+        }
+    }
+}
+
+private fun navegarPraBiblioteca(navController: androidx.navigation.NavController) {
+    if (navController.currentDestination?.route != Rotas.SEARCH) {
+        navController.navigate(Rotas.SEARCH) {
+            popUpTo(Rotas.EMPTY) { inclusive = true }
+            launchSingleTop = true
         }
     }
 }

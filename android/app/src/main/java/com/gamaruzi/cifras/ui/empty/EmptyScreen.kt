@@ -16,13 +16,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,7 +38,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun EmptyScreen(onPickFolder: () -> Unit) {
+fun EmptyScreen(
+    onPickImages: () -> Unit,
+    onPickDocs: () -> Unit,
+) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -59,23 +64,35 @@ fun EmptyScreen(onPickFolder: () -> Unit) {
             Spacer(Modifier.height(14.dp))
 
             Text(
-                text = "Escolha a pasta do seu celular onde ficam suas cifras. O Tap Cifras vai indexar os arquivos .txt dela — tudo fica no aparelho.",
+                text = "Adicione cifras do seu celular: imagens da galeria (prints/scans) ou arquivos PDF/TXT. Tudo fica no aparelho.",
                 fontSize = 15.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.widthIn(max = 280.dp).padding(horizontal = 40.dp),
+                modifier = Modifier.widthIn(max = 320.dp).padding(horizontal = 40.dp),
             )
 
             Spacer(Modifier.height(32.dp))
 
             Button(
-                onClick = onPickFolder,
+                onClick = onPickImages,
                 modifier = Modifier.heightIn(min = 56.dp).padding(horizontal = 16.dp),
                 contentPadding = PaddingValues(horizontal = 24.dp),
             ) {
-                Icon(Icons.Filled.Folder, contentDescription = null)
+                Icon(Icons.Filled.Image, contentDescription = null)
                 Spacer(Modifier.size(12.dp))
-                Text("Escolher pasta de cifras", fontSize = 16.sp)
+                Text("Adicionar imagem", fontSize = 16.sp)
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedButton(
+                onClick = onPickDocs,
+                modifier = Modifier.heightIn(min = 56.dp).padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(horizontal = 24.dp),
+            ) {
+                Icon(Icons.Filled.Description, contentDescription = null)
+                Spacer(Modifier.size(12.dp))
+                Text("Adicionar PDF ou TXT", fontSize = 16.sp)
             }
 
             Spacer(Modifier.weight(1f))

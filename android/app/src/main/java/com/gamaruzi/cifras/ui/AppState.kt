@@ -3,20 +3,30 @@ package com.gamaruzi.cifras.ui
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
-import androidx.documentfile.provider.DocumentFile
+import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamaruzi.cifras.data.CifrasRepository
+import com.gamaruzi.cifras.data.LibraryEntry
+import com.gamaruzi.cifras.data.SizeLimits
 import com.gamaruzi.cifras.data.Song
+import com.gamaruzi.cifras.data.SongFormat
+import com.gamaruzi.cifras.data.SongFormatDetector
 import com.gamaruzi.cifras.data.UserPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+// Resultado de uma operação de adição em lote, para feedback no UI.
+data class AddResult(
+    val adicionadas: Int,
+    val ignoradasPorFormato: Int,
+    val ignoradasPorTamanho: Int,
+)
 
 class AppState(application: Application) : AndroidViewModel(application) {
 
@@ -24,9 +34,8 @@ class AppState(application: Application) : AndroidViewModel(application) {
     private val prefs = UserPreferences(context)
     private val repo = CifrasRepository(context)
 
-    val folderName: StateFlow<String?> = prefs.folder
-        .map { it?.displayName }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val library: StateFlow<List<LibraryEntry>> = prefs.library
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _songs = MutableStateFlow<List<Song>>(emptyList())
     val songs: StateFlow<List<Song>> = _songs.asStateFlow()
@@ -40,34 +49,89 @@ class AppState(application: Application) : AndroidViewModel(application) {
     private val _recents = MutableStateFlow<List<String>>(emptyList())
     val recents: StateFlow<List<String>> = _recents.asStateFlow()
 
+    private val _lastAddResult = MutableStateFlow<AddResult?>(null)
+    val lastAddResult: StateFlow<AddResult?> = _lastAddResult.asStateFlow()
+
     init {
         viewModelScope.launch {
-            prefs.folder.collect { saved ->
-                if (saved == null) {
-                    _songs.value = emptyList()
-                } else {
-                    _loading.value = true
-                    _songs.value = repo.listSongs(saved.uri)
-                    _loading.value = false
-                }
+            prefs.library.collect { entries ->
+                _loading.value = true
+                _songs.value = repo.loadLibrary(entries)
+                _loading.value = false
             }
         }
     }
 
-    fun setFolder(uri: Uri) {
+    // Adiciona URIs vindas dos pickers (Photo Picker ou OpenDocument).
+    // - takePersistableUriPermission para sobreviver a reboot
+    // - consulta nome/tamanho via ContentResolver
+    // - detecta formato e valida limite de tamanho
+    // - entries inválidas são reportadas em AddResult, sem travar o fluxo
+    fun addUris(uris: List<Uri>) {
+        if (uris.isEmpty()) return
         viewModelScope.launch {
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION
-            )
-            val displayName = DocumentFile.fromTreeUri(context, uri)?.name ?: "Pasta de cifras"
-            prefs.saveFolder(uri, displayName)
+            var ignoradasFormato = 0
+            var ignoradasTamanho = 0
+            val novas = mutableListOf<LibraryEntry>()
+
+            uris.forEach { uri ->
+                runCatching {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
+                }
+                val mime = context.contentResolver.getType(uri)
+                val (displayName, sizeBytes) = queryMetadata(uri)
+                val format = SongFormatDetector.detect(mime, displayName)
+                if (format == null) {
+                    ignoradasFormato++
+                    return@forEach
+                }
+                if (!SizeLimits.withinLimit(format, sizeBytes)) {
+                    ignoradasTamanho++
+                    return@forEach
+                }
+                novas += LibraryEntry(
+                    uri = uri.toString(),
+                    displayName = displayName,
+                    format = format,
+                    sizeBytes = sizeBytes,
+                )
+            }
+
+            prefs.addEntries(novas)
+            _lastAddResult.value = AddResult(novas.size, ignoradasFormato, ignoradasTamanho)
         }
     }
 
-    fun clearFolder() {
-        viewModelScope.launch { prefs.clearFolder() }
+    fun removeFromLibrary(uri: String) {
+        viewModelScope.launch {
+            runCatching {
+                context.contentResolver.releasePersistableUriPermission(
+                    Uri.parse(uri),
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+            prefs.removeEntry(uri)
+        }
     }
+
+    fun clearLibrary() {
+        viewModelScope.launch {
+            library.value.forEach { entry ->
+                runCatching {
+                    context.contentResolver.releasePersistableUriPermission(
+                        Uri.parse(entry.uri),
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
+                }
+            }
+            prefs.clearAll()
+        }
+    }
+
+    fun consumeAddResult() { _lastAddResult.value = null }
 
     fun toggleFavorite(id: String) {
         _favorites.update { atual -> if (id in atual) atual - id else atual + id }
@@ -78,4 +142,22 @@ class AppState(application: Application) : AndroidViewModel(application) {
     }
 
     fun song(id: String): Song? = _songs.value.find { it.id == id }
+
+    private fun queryMetadata(uri: Uri): Pair<String, Long> {
+        var name = "arquivo"
+        var size = 0L
+        runCatching {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    val sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (nameIdx >= 0 && !cursor.isNull(nameIdx)) name = cursor.getString(nameIdx)
+                    if (sizeIdx >= 0 && !cursor.isNull(sizeIdx)) size = cursor.getLong(sizeIdx)
+                }
+            }
+        }
+        // Fallback pro último segmento do path quando o provider não devolve nome.
+        if (name == "arquivo") name = uri.lastPathSegment?.substringAfterLast('/') ?: name
+        return name to size
+    }
 }
