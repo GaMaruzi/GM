@@ -42,12 +42,13 @@ testada). `AppState` consome diretamente; toggle favorito e markRecent vão
 pro DataStore. `removeEntry` e `pruneOrphans` limpam favoritos/recentes
 órfãos automaticamente quando a biblioteca muda.
 
-### PR 4 — Transposição funcional no Detail
-- [ ] Port de `docs/design/theory.jsx` → `domain/Theory.kt`
-- [ ] `transposeChordLine()` preservando colunas (acordes mais longos ocupam mais colunas)
-- [ ] `keyPrefersFlat()` para escolher entre `#` e `b` conforme o tom
-- [ ] Steppers do Detail aplicam de verdade
-- [ ] Persistir transposição por música? **Decisão em aberto** — o design não fala. Default: não persistir.
+### PR 4 — Transposição funcional no Detail ✅
+Entregue. `domain/Theory.kt` é o port completo de `theory.jsx` (puro, sem
+dependência de Android). `transposeChordLine` preserva colunas com a mesma
+regra do JSX (ancora cada token, empurra com espaço só em colisão).
+`keyPrefersFlat` escolhe `#` ou `b` conforme convenção do tom original.
+Steppers do Detail aplicam de verdade. Transposição reseta ao trocar de
+música (não persiste — conforme decisão default).
 
 ### PR 5 — Settings funcional
 - [ ] Lista da biblioteca com botão "remover" por entry + botão "Limpar tudo"

@@ -65,6 +65,7 @@ import com.gamaruzi.cifras.data.PdfPageRenderer
 import com.gamaruzi.cifras.data.Section
 import com.gamaruzi.cifras.data.Song
 import com.gamaruzi.cifras.data.SongFormat
+import com.gamaruzi.cifras.domain.Theory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,10 +77,18 @@ fun DetailScreen(
     onPlayStage: () -> Unit,
 ) {
     var fontSize by remember { mutableIntStateOf(16) }
-    // Transposição visual ainda não está implementada (PR 4). O stepper
-    // mostra o tom original; +/- ainda não recalculam.
-    var semis by remember { mutableIntStateOf(0) }
+    // Reseta a transposição quando troca de música — caso contrário um +3
+    // grudado da música anterior se aplicaria à nova sem o usuário saber.
+    var semis by remember(song.id) { mutableIntStateOf(0) }
     val controlesAtivos = song.format == SongFormat.TEXT
+
+    // Tom de exibição: já transposto. Preferência por bemóis segue a
+    // convenção do tom original — "Bb" prefere bemóis após qualquer
+    // transposição; "G" prefere sustenidos. Mantém grafia consistente.
+    val prefereFlat = Theory.keyPrefersFlat(song.key)
+    val tomExibicao = remember(song.key, semis) {
+        Theory.transposeKey(song.key, semis, prefereFlat)
+    }
 
     Scaffold(
         topBar = {
@@ -136,7 +145,7 @@ fun DetailScreen(
                         Stepper(Icons.Filled.Remove, "Tom abaixo") { semis-- }
                         Box(modifier = Modifier.padding(horizontal = 8.dp)) {
                             Text(
-                                text = song.key,
+                                text = tomExibicao,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary,
@@ -169,7 +178,7 @@ fun DetailScreen(
             }
 
             when (song.format) {
-                SongFormat.TEXT -> TextContent(song, fontSize.sp)
+                SongFormat.TEXT -> TextContent(song, fontSize.sp, semis, prefereFlat)
                 SongFormat.IMAGE -> ImageContent(song)
                 SongFormat.PDF -> PdfContent(song)
             }
@@ -178,7 +187,7 @@ fun DetailScreen(
 }
 
 @Composable
-private fun TextContent(song: Song, fontSize: TextUnit) {
+private fun TextContent(song: Song, fontSize: TextUnit, semis: Int, prefereFlat: Boolean) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -191,7 +200,7 @@ private fun TextContent(song: Song, fontSize: TextUnit) {
         }
 
         if (song.sections.isNotEmpty()) {
-            SongComSections(song, fontSize)
+            SongComSections(song, fontSize, semis, prefereFlat)
         } else {
             Text(
                 text = "Não consegui ler o conteúdo deste arquivo.",
@@ -289,14 +298,23 @@ private fun PdfContent(song: Song) {
 }
 
 @Composable
-private fun SongComSections(song: Song, fontSize: TextUnit) {
+private fun SongComSections(song: Song, fontSize: TextUnit, semis: Int, prefereFlat: Boolean) {
     song.sections.forEachIndexed { index, section ->
         if (index > 0) Spacer(Modifier.height(20.dp))
         if (section.tag.isNotBlank()) {
             SectionTag(section.tag)
             Spacer(Modifier.height(6.dp))
         }
-        section.lines.forEach { line -> LineRow(line, fontSize) }
+        section.lines.forEach { line ->
+            // Transpõe in-line. Se semis=0 (caso comum), transposeChordLine
+            // devolve a string original sem alocar — barato.
+            val linhaRender = if (semis == 0 || line.chords.isBlank()) {
+                line
+            } else {
+                line.copy(chords = Theory.transposeChordLine(line.chords, semis, prefereFlat))
+            }
+            LineRow(linhaRender, fontSize)
+        }
     }
 }
 
