@@ -13,6 +13,7 @@ import com.gamaruzi.cifras.data.Song
 import com.gamaruzi.cifras.data.SongFormat
 import com.gamaruzi.cifras.data.SongFormatDetector
 import com.gamaruzi.cifras.data.UserPreferences
+import com.gamaruzi.cifras.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -47,6 +48,12 @@ class AppState(application: Application) : AndroidViewModel(application) {
 
     val recents: StateFlow<List<String>> = prefs.recents
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val themeMode: StateFlow<ThemeMode> = prefs.themeMode
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ThemeMode.SISTEMA)
+
+    val dynamicColor: StateFlow<Boolean> = prefs.dynamicColor
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val _lastAddResult = MutableStateFlow<AddResult?>(null)
     val lastAddResult: StateFlow<AddResult?> = _lastAddResult.asStateFlow()
@@ -152,6 +159,14 @@ class AppState(application: Application) : AndroidViewModel(application) {
 
     fun markRecent(id: String) {
         viewModelScope.launch { prefs.markRecent(id) }
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { prefs.setThemeMode(mode) }
+    }
+
+    fun setDynamicColor(enabled: Boolean) {
+        viewModelScope.launch { prefs.setDynamicColor(enabled) }
     }
 
     fun song(id: String): Song? = _songs.value.find { it.id == id }

@@ -164,7 +164,7 @@ fun AppNavHost(appState: AppState = viewModel()) {
         }
 
         composable(Rotas.SETTINGS) {
-            SettingsScreen(onBack = { navController.popBackStack() })
+            SettingsScreen(appState = appState, onBack = { navController.popBackStack() })
         }
     }
 }

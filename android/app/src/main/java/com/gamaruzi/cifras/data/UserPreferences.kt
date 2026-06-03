@@ -1,10 +1,12 @@
 package com.gamaruzi.cifras.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.gamaruzi.cifras.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -19,6 +21,8 @@ class UserPreferences(private val context: Context) {
     private val keyLibrary = stringSetPreferencesKey("library_v1")
     private val keyFavorites = stringSetPreferencesKey("favorites_v1")
     private val keyRecents = stringPreferencesKey("recents_v1")
+    private val keyThemeMode = stringPreferencesKey("theme_mode_v1")
+    private val keyDynamicColor = booleanPreferencesKey("dynamic_color_v1")
 
     val library: Flow<List<LibraryEntry>> = context.dataStore.data.map { prefs ->
         prefs[keyLibrary]
@@ -33,6 +37,15 @@ class UserPreferences(private val context: Context) {
 
     val recents: Flow<List<String>> = context.dataStore.data.map { prefs ->
         RecentsCodec.decode(prefs[keyRecents].orEmpty())
+    }
+
+    val themeMode: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
+        ThemeMode.fromKey(prefs[keyThemeMode])
+    }
+
+    // Padrão false: identidade verde Spotify (ver Theme.kt). Toggle vira opt-in.
+    val dynamicColor: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[keyDynamicColor] ?: false
     }
 
     suspend fun addEntries(novas: List<LibraryEntry>) {
@@ -101,6 +114,14 @@ class UserPreferences(private val context: Context) {
             val atual = RecentsCodec.decode(prefs[keyRecents].orEmpty())
             prefs[keyRecents] = RecentsCodec.encode(RecentsCodec.applyMRU(atual, uri))
         }
+    }
+
+    suspend fun setThemeMode(mode: ThemeMode) {
+        context.dataStore.edit { prefs -> prefs[keyThemeMode] = mode.name }
+    }
+
+    suspend fun setDynamicColor(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[keyDynamicColor] = enabled }
     }
 
     // Sweep periódico — chamado quando a biblioteca muda — pra evitar que

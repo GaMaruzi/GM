@@ -74,13 +74,18 @@ private val DarkColors = darkColorScheme(
 
 @Composable
 fun CifrasTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: ThemeMode = ThemeMode.SISTEMA,
     // Padrão da marca: verde Spotify sempre. Material You (cores do wallpaper)
-    // fica como opt-in futuro nas configurações — quando ligado, sobrepõe a
-    // paleta verde com cores derivadas do wallpaper no Android 12+.
+    // é opt-in via Settings — quando ligado, sobrepõe a paleta verde com
+    // cores derivadas do wallpaper no Android 12+.
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    val darkTheme = when (themeMode) {
+        ThemeMode.SISTEMA -> isSystemInDarkTheme()
+        ThemeMode.CLARO -> false
+        ThemeMode.ESCURO -> true
+    }
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current

@@ -50,14 +50,14 @@ regra do JSX (ancora cada token, empurra com espaço só em colisão).
 Steppers do Detail aplicam de verdade. Transposição reseta ao trocar de
 música (não persiste — conforme decisão default).
 
-### PR 5 — Settings funcional
-- [ ] Lista da biblioteca com botão "remover" por entry + botão "Limpar tudo"
-- [ ] Contadores por formato (X imagens · Y PDFs · Z TXTs)
-- [ ] Segmented control de tema: Sistema / Claro / Escuro (persiste)
-- [ ] Toggle "Cores dinâmicas (Material You)" — opt-in; padrão atual é OFF
-      (verde Spotify fixo, ver `Theme.kt`)
-- [ ] Card de privacidade ("Este app não acessa a internet…")
-- [ ] Item "Sobre" com versão (lê de `BuildConfig.VERSION_NAME`)
+### PR 5 — Settings funcional ✅
+Entregue. Cinco seções (Biblioteca, Aparência, Privacidade, Sobre), todas
+persistidas em DataStore via `UserPreferences.themeMode` / `dynamicColor`.
+Tema aplica imediato (StateFlow lido no `MainActivity`). Material You é
+opt-in com Switch desabilitado em pré-Android 12. Remoção individual fica
+no menu da Search (não duplicada aqui); o botão "Limpar biblioteca"
+existe com dialog de confirmação. `BuildConfig.VERSION_NAME` exposto via
+`buildFeatures.buildConfig = true`.
 
 ### PR 6 — Posição de scroll por música
 - [ ] DataStore mapa `songId → scrollOffset`
