@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tap Cifras — Ícone & Paleta</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0f1410; color: #E0E6DD; font-family: 'Roboto', system-ui, sans-serif; padding: 44px 32px 80px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-weight: 500; font-size: 30px; margin: 0 0 4px; }
+  .sub { color: #8f9a8c; font-size: 15px; margin-bottom: 8px; max-width: 660px; }
+  h2 { font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; color: #1ED760; margin: 42px 0 18px; font-weight: 700; }
+  .row { display: flex; flex-wrap: wrap; gap: 26px; align-items: flex-end; }
+  .cell { text-align: center; }
+  .cap { margin-top: 12px; font-size: 12.5px; color: #8f9a8c; }
+  .icon { overflow: hidden; box-shadow: 0 14px 34px rgba(0,0,0,0.5); }
+  .circle { border-radius: 50%; } .squircle { border-radius: 28%; } .rsquare { border-radius: 16%; }
+  .layerbox { background:
+    linear-gradient(45deg, #20271f 25%, transparent 25%, transparent 75%, #20271f 75%),
+    linear-gradient(45deg, #20271f 25%, #181d18 25%, #181d18 75%, #20271f 75%);
+    background-size: 16px 16px; background-position: 0 0, 8px 8px; border-radius: 14px; display: inline-block; }
+  code { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #54d67c; }
+  table { border-collapse: collapse; width: 100%; margin-top: 6px; font-size: 13px; }
+  th { text-align: left; color: #8f9a8c; font-weight: 600; padding: 6px 10px; border-bottom: 1px solid #2a322a; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+  td { padding: 7px 10px; border-bottom: 1px solid #20271f; }
+  .sw { display: inline-block; width: 18px; height: 18px; border-radius: 5px; vertical-align: middle; margin-right: 8px; border: 1px solid rgba(255,255,255,0.08); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  @media (max-width: 760px){ .cols{ grid-template-columns: 1fr; } }
+  .panel { background: #151a15; border: 1px solid #232a23; border-radius: 14px; padding: 14px 16px; }
+  .pname { font-weight: 600; font-size: 14px; margin-bottom: 8px; color: #cdd6c9; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Tap Cifras — Ícone &amp; Paleta</h1>
+  <div class="sub">Ícone <b style="color:#cdd6c9">Conceito A — Toque</b> (mão/dedo tocando, traço branco) sobre verde Spotify. Paleta Material 3 derivada do verde, modo claro como padrão + variante escura.</div>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#25E06A"/><stop offset="0.55" stop-color="#1DB954"/><stop offset="1" stop-color="#12953F"/>
+    </linearGradient>
+    <g id="fg" fill="#ffffff" transform="translate(18,12) scale(3.0)">
+      <path d="M9 11.24V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6C13 6.67 12.33 6 11.5 6S10 6.67 10 7.5v10.74l-3.43-.72c-.08-.01-.15-.03-.24-.03-.31 0-.59.13-.79.33l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27c.01-.07.02-.14.02-.2 0-.62-.38-1.16-.91-1.38z"/>
+    </g>
+  </defs></svg>
+
+  <h2>Ícone — camadas adaptativas</h2>
+  <div class="row">
+    <div class="cell"><div class="layerbox"><svg width="132" height="132" viewBox="0 0 108 108"><rect width="108" height="108" fill="url(#bg)"/></svg></div><div class="cap"><code>ic_launcher_background.svg</code></div></div>
+    <div class="cell"><div class="layerbox"><svg width="132" height="132" viewBox="0 0 108 108"><circle cx="54" cy="54" r="33" fill="none" stroke="#54d67c" stroke-width="0.5" stroke-dasharray="2 2"/><use href="#fg"/></svg></div><div class="cap"><code>ic_launcher_foreground.svg</code> · safe 66dp</div></div>
+  </div>
+
+  <h2>Ícone — máscaras do launcher</h2>
+  <div class="row">
+    <div class="cell"><div class="icon circle"><svg width="104" height="104" viewBox="0 0 108 108"><rect width="108" height="108" fill="url(#bg)"/><use href="#fg"/></svg></div><div class="cap">Círculo</div></div>
+    <div class="cell"><div class="icon squircle"><svg width="104" height="104" viewBox="0 0 108 108"><rect width="108" height="108" fill="url(#bg)"/><use href="#fg"/></svg></div><div class="cap">Squircle</div></div>
+    <div class="cell"><div class="icon rsquare"><svg width="104" height="104" viewBox="0 0 108 108"><rect width="108" height="108" fill="url(#bg)"/><use href="#fg"/></svg></div><div class="cap">Quadrado</div></div>
+    <div class="cell"><div class="icon circle"><svg width="56" height="56" viewBox="0 0 108 108"><rect width="108" height="108" fill="url(#bg)"/><use href="#fg"/></svg></div><div class="cap">48dp</div></div>
+    <div class="cell"><div class="icon circle"><svg width="34" height="34" viewBox="0 0 108 108"><rect width="108" height="108" fill="url(#bg)"/><use href="#fg"/></svg></div><div class="cap">24dp</div></div>
+  </div>
+
+  <h2>Paleta — Material 3 (semente verde)</h2>
+  <div class="cols">
+    <div class="panel" id="lightTbl"><div class="pname">☀️ Light (padrão)</div></div>
+    <div class="panel" id="darkTbl"><div class="pname">🌙 Dark</div></div>
+  </div>
+
+  <h2>Modo Palco (fixo) &amp; marca</h2>
+  <div class="cols">
+    <div class="panel" id="stageTbl"><div class="pname">Modo Palco — independe do tema</div></div>
+    <div class="panel" id="brandTbl"><div class="pname">Marca / ícone</div></div>
+  </div>
+</div>
+
+<script>
+const LIGHT = {
+  primary:'#107A39', onPrimary:'#FFFFFF', primaryContainer:'#1ED760', onPrimaryContainer:'#00210E',
+  secondary:'#3E6B4B', secondaryContainer:'#C2F0CD', onSecondaryContainer:'#00210E',
+  tertiary:'#1C6B4A', tertiaryContainer:'#A6F2C6', onTertiaryContainer:'#002112',
+  background:'#FBFDF7', onBackground:'#191C19', surface:'#FBFDF7', onSurface:'#191C19',
+  surfaceContainerLowest:'#FFFFFF', surfaceContainerLow:'#F2F6EF', surfaceContainer:'#ECF1E9',
+  surfaceContainerHigh:'#E6EBE3', surfaceContainerHighest:'#E0E6DD',
+  onSurfaceVariant:'#414941', outline:'#717971', outlineVariant:'#C0C9BF',
+  error:'#BA1A1A', onError:'#FFFFFF', errorContainer:'#FFDAD6', onErrorContainer:'#410002',
+};
+const DARK = {
+  primary:'#1ED760', onPrimary:'#00390F', primaryContainer:'#0A8A3F', onPrimaryContainer:'#C7F7D2',
+  secondary:'#A6D3B2', secondaryContainer:'#234A33', onSecondaryContainer:'#C2F0CD',
+  tertiary:'#86D6AC', tertiaryContainer:'#004F30', onTertiaryContainer:'#A6F2C6',
+  background:'#101510', onBackground:'#E0E6DD', surface:'#101510', onSurface:'#E0E6DD',
+  surfaceContainerLowest:'#0A0F0A', surfaceContainerLow:'#181D18', surfaceContainer:'#1A211B',
+  surfaceContainerHigh:'#252B25', surfaceContainerHighest:'#303630',
+  onSurfaceVariant:'#C0C9BF', outline:'#8A938A', outlineVariant:'#414941',
+  error:'#FFB4AB', onError:'#690005', errorContainer:'#93000A', onErrorContainer:'#FFDAD6',
+};
+const STAGE = { 'background (OLED)':'#000000', 'text':'#F2F2F2', 'dim':'#8A8A8A', 'acorde (accentBright)':'#1ED760' };
+const BRAND = { 'verde claro':'#1ED760', 'verde Spotify':'#1DB954', 'verde escuro':'#12953F', 'traço (foreground)':'#FFFFFF' };
+function tbl(obj){
+  let h='<table><tr><th>Role</th><th>Hex</th></tr>';
+  for(const k in obj){ h+=`<tr><td>${k}</td><td><span class="sw" style="background:${obj[k]}"></span><code>${obj[k]}</code></td></tr>`; }
+  return h+'</table>';
+}
+lightTbl.insertAdjacentHTML('beforeend', tbl(LIGHT));
+darkTbl.insertAdjacentHTML('beforeend', tbl(DARK));
+stageTbl.insertAdjacentHTML('beforeend', tbl(STAGE));
+brandTbl.insertAdjacentHTML('beforeend', tbl(BRAND));
+</script>
+</body>
+</html>

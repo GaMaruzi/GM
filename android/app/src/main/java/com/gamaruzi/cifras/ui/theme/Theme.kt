@@ -16,18 +16,29 @@ private val LightColors = lightColorScheme(
     primaryContainer = PrimaryContainerLight,
     onPrimaryContainer = OnPrimaryContainerLight,
     secondary = SecondaryLight,
+    onSecondary = OnSecondaryLight,
     secondaryContainer = SecondaryContainerLight,
     onSecondaryContainer = OnSecondaryContainerLight,
     tertiary = TertiaryLight,
+    onTertiary = OnTertiaryLight,
     tertiaryContainer = TertiaryContainerLight,
     onTertiaryContainer = OnTertiaryContainerLight,
+    background = BackgroundLight,
+    onBackground = OnBackgroundLight,
     surface = SurfaceLight,
+    onSurface = OnSurfaceLight,
+    surfaceContainerLowest = SurfaceContainerLowestLight,
+    surfaceContainerLow = SurfaceContainerLowLight,
+    surfaceContainer = SurfaceContainerLightToken,
     surfaceContainerHigh = SurfaceContainerHighLight,
     surfaceContainerHighest = SurfaceContainerHighestLight,
-    onSurface = OnSurfaceLight,
     onSurfaceVariant = OnSurfaceVariantLight,
     outline = OutlineLight,
     outlineVariant = OutlineVariantLight,
+    error = ErrorLight,
+    onError = OnErrorLight,
+    errorContainer = ErrorContainerLight,
+    onErrorContainer = OnErrorContainerLight,
 )
 
 private val DarkColors = darkColorScheme(
@@ -36,24 +47,36 @@ private val DarkColors = darkColorScheme(
     primaryContainer = PrimaryContainerDark,
     onPrimaryContainer = OnPrimaryContainerDark,
     secondary = SecondaryDark,
+    onSecondary = OnSecondaryDark,
     secondaryContainer = SecondaryContainerDark,
     onSecondaryContainer = OnSecondaryContainerDark,
     tertiary = TertiaryDark,
+    onTertiary = OnTertiaryDark,
     tertiaryContainer = TertiaryContainerDark,
     onTertiaryContainer = OnTertiaryContainerDark,
+    background = BackgroundDark,
+    onBackground = OnBackgroundDark,
     surface = SurfaceDark,
+    onSurface = OnSurfaceDark,
+    surfaceContainerLowest = SurfaceContainerLowestDark,
+    surfaceContainerLow = SurfaceContainerLowDark,
+    surfaceContainer = SurfaceContainerDarkToken,
     surfaceContainerHigh = SurfaceContainerHighDark,
     surfaceContainerHighest = SurfaceContainerHighestDark,
-    onSurface = OnSurfaceDark,
     onSurfaceVariant = OnSurfaceVariantDark,
     outline = OutlineDark,
     outlineVariant = OutlineVariantDark,
+    error = ErrorDark,
+    onError = OnErrorDark,
+    errorContainer = ErrorContainerDark,
+    onErrorContainer = OnErrorContainerDark,
 )
 
 @Composable
 fun CifrasTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Material You — cores derivadas do wallpaper no Android 12+.
+    // O padrão do design é deixar ligado.
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Cor base usada como fallback enquanto o ícone adaptivo carrega
-         (deveria corresponder ao stop final do gradiente do background). -->
-    <color name="ic_launcher_background">#241B3D</color>
+         (corresponde ao stop final do gradiente do background). -->
+    <color name="ic_launcher_background">#12953F</color>
 </resources>
