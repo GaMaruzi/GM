@@ -3,16 +3,29 @@ package com.gamaruzi.cifras.data
 // Um arquivo de cifra adicionado pelo usuário à biblioteca do app.
 // A URI vem persistida do SAF (Photo Picker ou OpenDocument) com
 // takePersistableUriPermission — sobrevive a reboots, mas não a uninstall.
+//
+// displayName é o nome original do arquivo (imutável; usado para detectar
+// extensão/formato). customName é a renomeação opcional feita pelo usuário
+// dentro do app — quando não-nulo, é o que aparece em todos os títulos da UI.
 data class LibraryEntry(
     val uri: String,
     val displayName: String,
     val format: SongFormat,
     val sizeBytes: Long,
-)
+    val customName: String? = null,
+) {
+    // Nome a ser usado em todos os pontos de UI (lista, detail, busca).
+    val nomeExibicao: String get() = customName ?: displayName
+}
 
 // Codec linha-única para DataStore. Separador U+0001 (Start of Heading) é
 // caractere de controle ausente de qualquer nome de arquivo válido em Android,
 // então é seguro como delimitador sem precisar de escape.
+//
+// Esquema v2 (5 campos): uri | displayName | format | sizeBytes | customName
+// O decoder aceita também o esquema v1 (4 campos, sem customName) para que
+// bibliotecas salvas antes do PR-D continuem funcionando após o upgrade. O
+// encoder sempre escreve no formato v2.
 internal object LibraryEntryCodec {
     private const val SEP = ""
 
@@ -22,18 +35,21 @@ internal object LibraryEntryCodec {
             entry.displayName,
             entry.format.name,
             entry.sizeBytes.toString(),
+            entry.customName.orEmpty(),
         ).joinToString(SEP)
 
     fun decode(raw: String): LibraryEntry? {
         val parts = raw.split(SEP)
-        if (parts.size != 4) return null
+        if (parts.size != 4 && parts.size != 5) return null
         val format = runCatching { SongFormat.valueOf(parts[2]) }.getOrNull() ?: return null
         val size = parts[3].toLongOrNull() ?: return null
+        val customName = if (parts.size == 5 && parts[4].isNotEmpty()) parts[4] else null
         return LibraryEntry(
             uri = parts[0],
             displayName = parts[1],
             format = format,
             sizeBytes = size,
+            customName = customName,
         )
     }
 }

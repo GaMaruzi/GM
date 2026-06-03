@@ -38,6 +38,21 @@ class UserPreferences(private val context: Context) {
         }
     }
 
+    // Substitui uma entry existente (mesma URI). Usado pra renomear sem
+    // perder posição no Set. Se a URI não existe, é no-op.
+    suspend fun replaceEntry(novaEntry: LibraryEntry) {
+        context.dataStore.edit { prefs ->
+            val atual = prefs[keyLibrary].orEmpty()
+                .mapNotNull(LibraryEntryCodec::decode)
+            val achou = atual.any { it.uri == novaEntry.uri }
+            if (!achou) return@edit
+            prefs[keyLibrary] = atual
+                .map { if (it.uri == novaEntry.uri) novaEntry else it }
+                .map(LibraryEntryCodec::encode)
+                .toSet()
+        }
+    }
+
     suspend fun removeEntry(uri: String) {
         context.dataStore.edit { prefs ->
             val atual = prefs[keyLibrary].orEmpty()

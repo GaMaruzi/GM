@@ -117,6 +117,16 @@ class AppState(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // Salva um nome customizado para a entry. Vazio ou igual ao displayName
+    // desfaz a renomeação (volta a usar o nome original do arquivo).
+    fun renameEntry(uri: String, novoNome: String) {
+        viewModelScope.launch {
+            val atual = library.value.firstOrNull { it.uri == uri } ?: return@launch
+            val custom = novoNome.trim().takeUnless { it.isEmpty() || it == atual.displayName }
+            prefs.replaceEntry(atual.copy(customName = custom))
+        }
+    }
+
     fun clearLibrary() {
         viewModelScope.launch {
             library.value.forEach { entry ->

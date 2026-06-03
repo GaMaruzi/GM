@@ -64,4 +64,61 @@ class LibraryEntryCodecTest {
         val zero = LibraryEntry("content://x", "n", SongFormat.TEXT, 0)
         assertEquals(zero, LibraryEntryCodec.decode(LibraryEntryCodec.encode(zero)))
     }
+
+    @Test
+    fun `customName e preservado no roundtrip v2`() {
+        val entry = LibraryEntry(
+            uri = "content://x",
+            displayName = "IMG_2390.jpg",
+            format = SongFormat.IMAGE,
+            sizeBytes = 500_000,
+            customName = "Wonderwall - Oasis",
+        )
+        val decoded = LibraryEntryCodec.decode(LibraryEntryCodec.encode(entry))
+        assertEquals(entry, decoded)
+        assertEquals("Wonderwall - Oasis", decoded?.customName)
+        assertEquals("Wonderwall - Oasis", decoded?.nomeExibicao)
+    }
+
+    @Test
+    fun `customName null vira string vazia no encode mas volta como null no decode`() {
+        // Garante que entries sem renomear não viram customName = ""
+        val entry = LibraryEntry("content://x", "nome.txt", SongFormat.TEXT, 100, customName = null)
+        val decoded = LibraryEntryCodec.decode(LibraryEntryCodec.encode(entry))
+        assertNull(decoded?.customName)
+        assertEquals("nome.txt", decoded?.nomeExibicao)
+    }
+
+    @Test
+    fun `decoder aceita esquema v1 de 4 campos preservando back-compat`() {
+        // Formato antigo, gravado por versões anteriores ao PR-D. Construo a
+        // string com listOf().joinToString para não depender de literais com
+        // caractere de controle U+0001 (que ferramentas podem normalizar).
+        val v1raw = listOf("content://x", "nome.txt", "TEXT", "100").joinToString("")
+        val decoded = LibraryEntryCodec.decode(v1raw)
+        assertEquals(
+            LibraryEntry("content://x", "nome.txt", SongFormat.TEXT, 100, customName = null),
+            decoded,
+        )
+    }
+
+    @Test
+    fun `nomeExibicao usa customName quando presente, senao displayName`() {
+        val sem = LibraryEntry("x", "original.pdf", SongFormat.PDF, 1)
+        val com = sem.copy(customName = "Apelido")
+        assertEquals("original.pdf", sem.nomeExibicao)
+        assertEquals("Apelido", com.nomeExibicao)
+    }
+
+    @Test
+    fun `customName com caracteres especiais sobrevive`() {
+        val entry = LibraryEntry(
+            uri = "x",
+            displayName = "scan.jpg",
+            format = SongFormat.IMAGE,
+            sizeBytes = 100,
+            customName = "Música: Çoração (versão acústica)",
+        )
+        assertEquals(entry, LibraryEntryCodec.decode(LibraryEntryCodec.encode(entry)))
+    }
 }

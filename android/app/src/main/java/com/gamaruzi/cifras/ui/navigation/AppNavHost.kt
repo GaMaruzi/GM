@@ -129,6 +129,8 @@ fun AppNavHost(appState: AppState = viewModel()) {
                 onAddDocs = {
                     pickDocsLauncher.launch(arrayOf("application/pdf", "text/plain"))
                 },
+                onRename = appState::renameEntry,
+                onDelete = appState::removeFromLibrary,
                 onStartStage = { navController.navigate(Rotas.SETLIST) },
             )
         }

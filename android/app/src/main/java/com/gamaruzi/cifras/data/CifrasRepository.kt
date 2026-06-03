@@ -18,7 +18,10 @@ class CifrasRepository(private val context: Context) {
         }
 
     private fun toSong(entry: LibraryEntry): Song? {
-        val (title, artist) = splitTitleArtist(entry.displayName)
+        // Título e artista derivam do nome de exibição (custom quando presente),
+        // mas a extensão sempre vem do nome técnico original — o usuário não
+        // muda o formato do arquivo ao renomear.
+        val (title, artist) = splitTitleArtist(entry.nomeExibicao)
         val ext = entry.displayName.substringAfterLast('.', "")
             .ifEmpty { defaultExt(entry.format) }
 

@@ -20,7 +20,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.History
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -40,11 +43,13 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -79,11 +84,15 @@ fun SearchScreen(
     onOpenSettings: () -> Unit,
     onAddImages: () -> Unit,
     onAddDocs: () -> Unit,
+    onRename: (String, String) -> Unit,
+    onDelete: (String) -> Unit,
     onStartStage: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
     var tab by remember { mutableStateOf(SearchTab.TODAS) }
     var menuExpanded by remember { mutableStateOf(false) }
+    var songParaRenomear by remember { mutableStateOf<Song?>(null) }
+    var songParaExcluir by remember { mutableStateOf<Song?>(null) }
 
     val resultados = remember(songs, favorites, recents, query, tab) {
         val base = when (tab) {
@@ -238,11 +247,36 @@ fun SearchScreen(
                             isFavorite = song.id in favorites,
                             onClick = { onOpenSong(song.id) },
                             onToggleFav = { onToggleFavorite(song.id) },
+                            onRename = { songParaRenomear = song },
+                            onDelete = { songParaExcluir = song },
                         )
                     }
                 }
             }
         }
+    }
+
+    songParaRenomear?.let { song ->
+        RenomearDialog(
+            nomeAtual = song.file,
+            titulo = song.title,
+            onDismiss = { songParaRenomear = null },
+            onConfirm = { novoNome ->
+                onRename(song.id, novoNome)
+                songParaRenomear = null
+            },
+        )
+    }
+
+    songParaExcluir?.let { song ->
+        ExcluirDialog(
+            song = song,
+            onDismiss = { songParaExcluir = null },
+            onConfirm = {
+                onDelete(song.id)
+                songParaExcluir = null
+            },
+        )
     }
 }
 
@@ -270,7 +304,11 @@ private fun SongItem(
     isFavorite: Boolean,
     onClick: () -> Unit,
     onToggleFav: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
 ) {
+    var overflowExpanded by remember { mutableStateOf(false) }
+
     Surface(
         onClick = onClick,
         color = Color.Transparent,
@@ -278,7 +316,7 @@ private fun SongItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 24.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
+                .padding(start = 24.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
@@ -324,8 +362,114 @@ private fun SongItem(
                     modifier = Modifier.size(22.dp),
                 )
             }
+            Box {
+                IconButton(
+                    onClick = { overflowExpanded = true },
+                    modifier = Modifier.size(44.dp).clip(CircleShape),
+                ) {
+                    Icon(
+                        Icons.Filled.MoreVert,
+                        contentDescription = "Mais ações",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+                DropdownMenu(
+                    expanded = overflowExpanded,
+                    onDismissRequest = { overflowExpanded = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Renomear") },
+                        leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                        onClick = { overflowExpanded = false; onRename() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Excluir") },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        },
+                        onClick = { overflowExpanded = false; onDelete() },
+                    )
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun RenomearDialog(
+    nomeAtual: String,
+    titulo: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var texto by remember(nomeAtual) { mutableStateOf(nomeAtual) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Renomear cifra") },
+        text = {
+            Column {
+                Text(
+                    "Mude como esta cifra aparece no app. O arquivo original não é alterado.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = texto,
+                    onValueChange = { texto = it },
+                    label = { Text("Nome") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Dica: use o formato \"Título - Artista.ext\" pra preencher os dois campos.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(texto) },
+                enabled = texto.isNotBlank() && texto != nomeAtual,
+            ) { Text("Salvar") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        },
+    )
+}
+
+@Composable
+private fun ExcluirDialog(
+    song: Song,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Excluir da biblioteca?") },
+        text = {
+            Text(
+                "\"${song.title}\" será removida da biblioteca do Tap Cifras. O arquivo original no celular não é apagado.",
+                fontSize = 14.sp,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Excluir", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        },
+    )
 }
 
 private fun iconeDoFormato(format: SongFormat): ImageVector = when (format) {

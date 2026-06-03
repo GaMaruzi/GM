@@ -73,9 +73,17 @@ fun EmptyScreen(
 
             Spacer(Modifier.height(32.dp))
 
+            // Os dois botões compartilham largura via fillMaxWidth + padding
+            // horizontal igual: alinhar visualmente é mais importante que
+            // deixar cada botão se ajustar ao próprio texto.
+            val acaoMod = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp)
+                .heightIn(min = 56.dp)
+
             Button(
                 onClick = onPickImages,
-                modifier = Modifier.heightIn(min = 56.dp).padding(horizontal = 16.dp),
+                modifier = acaoMod,
                 contentPadding = PaddingValues(horizontal = 24.dp),
             ) {
                 Icon(Icons.Filled.Image, contentDescription = null)
@@ -87,7 +95,7 @@ fun EmptyScreen(
 
             OutlinedButton(
                 onClick = onPickDocs,
-                modifier = Modifier.heightIn(min = 56.dp).padding(horizontal = 16.dp),
+                modifier = acaoMod,
                 contentPadding = PaddingValues(horizontal = 24.dp),
             ) {
                 Icon(Icons.Filled.Description, contentDescription = null)
