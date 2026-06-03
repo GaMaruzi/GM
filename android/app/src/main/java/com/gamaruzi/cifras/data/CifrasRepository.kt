@@ -6,45 +6,58 @@ import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-// PR 1: lista arquivos .txt da pasta escolhida e expõe conteúdo bruto.
-// Parsing inteligente (acordes vs letra, transposição, capotraste) entra no PR 2.
 class CifrasRepository(private val context: Context) {
 
+    // Lista + parseia todas as cifras .txt da pasta escolhida.
+    // O parsing roda em IO; para um conjunto típico (~dezenas a centenas de
+    // arquivos pequenos) é desprezível. Se virar problema, mover pro PR 6 com
+    // index incremental em DataStore/Room.
     suspend fun listSongs(treeUri: Uri): List<Song> = withContext(Dispatchers.IO) {
         val raiz = DocumentFile.fromTreeUri(context, treeUri) ?: return@withContext emptyList()
         raiz.listFiles()
             .asSequence()
             .filter { it.isFile && it.name?.endsWith(".txt", ignoreCase = true) == true }
             .sortedBy { it.name?.lowercase() }
-            .map { doc -> toMinimalSong(doc) }
+            .mapNotNull { doc -> parseSong(doc) }
             .toList()
     }
 
-    // Lê o conteúdo bruto do arquivo. Usado pelo Detail enquanto o parser real
-    // não chega (PR 2). Retorna null se o arquivo sumiu ou não pode ser lido.
-    suspend fun readContent(fileUri: Uri): String? = withContext(Dispatchers.IO) {
+    private fun parseSong(doc: DocumentFile): Song? {
+        val fileName = doc.name ?: return null
+        val raw = readContentInternal(doc.uri) ?: return null
+        val parsed = CifraTextParser.parse(raw)
+        val (title, artist) = splitTitleArtist(fileName)
+        return Song(
+            id = doc.uri.toString(),
+            file = fileName,
+            title = title,
+            artist = artist,
+            key = parsed.key,
+            capo = parsed.capo,
+            genre = "",
+            ext = fileName.substringAfterLast('.', "txt"),
+            sections = parsed.sections,
+        )
+    }
+
+    private fun readContentInternal(fileUri: Uri): String? =
         runCatching {
             context.contentResolver.openInputStream(fileUri)?.use { input ->
                 input.bufferedReader(Charsets.UTF_8).readText()
             }
         }.getOrNull()
-    }
+}
 
-    private fun toMinimalSong(doc: DocumentFile): Song {
-        val nomeArquivo = doc.name ?: "sem-nome.txt"
-        val semExt = nomeArquivo.substringBeforeLast('.', nomeArquivo)
-        return Song(
-            id = doc.uri.toString(),
-            file = nomeArquivo,
-            title = semExt,
-            artist = "—",
-            key = "—",
-            capo = 0,
-            genre = "",
-            ext = nomeArquivo.substringAfterLast('.', "txt"),
-            // Sections virá do parser real no PR 2. Por enquanto vazio — o
-            // Detail carrega o conteúdo bruto via readContent().
-            sections = emptyList()
-        )
+// "Asa Branca - Luiz Gonzaga.txt" → ("Asa Branca", "Luiz Gonzaga")
+// "Wonderwall.txt"                 → ("Wonderwall", "—")
+// "A - B - C.txt"                  → ("A - B", "C")   (último " - " divide)
+internal fun splitTitleArtist(fileName: String): Pair<String, String> {
+    val semExt = fileName.substringBeforeLast('.', fileName)
+    val sep = " - "
+    val idx = semExt.lastIndexOf(sep)
+    return if (idx > 0) {
+        semExt.substring(0, idx).trim() to semExt.substring(idx + sep.length).trim()
+    } else {
+        semExt.trim() to "—"
     }
 }

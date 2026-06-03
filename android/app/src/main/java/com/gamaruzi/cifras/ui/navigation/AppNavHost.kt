@@ -5,10 +5,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -23,7 +19,6 @@ import com.gamaruzi.cifras.ui.search.SearchScreen
 import com.gamaruzi.cifras.ui.setlist.SetlistScreen
 import com.gamaruzi.cifras.ui.settings.SettingsScreen
 import com.gamaruzi.cifras.ui.stage.StageScreen
-import kotlinx.coroutines.launch
 
 object Rotas {
     const val EMPTY = "empty"
@@ -39,20 +34,18 @@ object Rotas {
 @Composable
 fun AppNavHost(appState: AppState = viewModel()) {
     val navController = rememberNavController()
-    val scope = rememberCoroutineScope()
 
     val folder by appState.folderName.collectAsStateWithLifecycle()
     val songs by appState.songs.collectAsStateWithLifecycle()
+    val loading by appState.loading.collectAsStateWithLifecycle()
     val favorites by appState.favorites.collectAsStateWithLifecycle()
     val recents by appState.recents.collectAsStateWithLifecycle()
 
-    // SAF folder picker. Resultado pode vir null se o usuário cancelar.
     val pickFolderLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
         if (uri != null) {
             appState.setFolder(uri)
-            // Garante que estamos na Search após escolher (vindos do Empty).
             navController.navigate(Rotas.SEARCH) {
                 popUpTo(Rotas.EMPTY) { inclusive = true }
                 launchSingleTop = true
@@ -60,7 +53,6 @@ fun AppNavHost(appState: AppState = viewModel()) {
         }
     }
 
-    // Se a pasta sumiu (URI revogada, pasta deletada etc.) volta pro Empty.
     LaunchedEffect(folder) {
         if (folder == null && navController.currentDestination?.route != Rotas.EMPTY) {
             navController.navigate(Rotas.EMPTY) {
@@ -81,6 +73,7 @@ fun AppNavHost(appState: AppState = viewModel()) {
             SearchScreen(
                 folderName = folder ?: "—",
                 songs = songs,
+                loading = loading,
                 favorites = favorites,
                 recents = recents,
                 onOpenSong = { id ->
@@ -104,16 +97,8 @@ fun AppNavHost(appState: AppState = viewModel()) {
             if (song == null) {
                 LaunchedEffect(Unit) { navController.popBackStack() }
             } else {
-                // Carrega o conteúdo bruto do arquivo (sem parser por enquanto).
-                var rawContent by remember(song.id) { mutableStateOf<String?>(null) }
-                LaunchedEffect(song.id) {
-                    if (song.sections.isEmpty()) {
-                        rawContent = appState.readSongContent(song.id)
-                    }
-                }
                 DetailScreen(
                     song = song,
-                    rawContent = rawContent,
                     isFavorite = song.id in favorites,
                     onBack = { navController.popBackStack() },
                     onToggleFavorite = { appState.toggleFavorite(song.id) },

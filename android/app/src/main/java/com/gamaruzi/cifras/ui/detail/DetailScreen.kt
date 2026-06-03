@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -56,7 +55,6 @@ import com.gamaruzi.cifras.data.Song
 @Composable
 fun DetailScreen(
     song: Song,
-    rawContent: String?,
     isFavorite: Boolean,
     onBack: () -> Unit,
     onToggleFavorite: () -> Unit,
@@ -166,8 +164,11 @@ fun DetailScreen(
                 if (song.sections.isNotEmpty()) {
                     SongComSections(song, fontSize.sp)
                 } else {
-                    // PR 1: ainda não temos parser, então só mostra o conteúdo bruto.
-                    SongComConteudoBruto(rawContent, fontSize.sp)
+                    // Arquivo vazio ou sem conteúdo parseável.
+                    Text(
+                        text = "Não consegui ler o conteúdo deste arquivo.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
 
                 Spacer(Modifier.height(20.dp))
@@ -192,22 +193,6 @@ private fun SongComSections(song: Song, fontSize: TextUnit) {
             Spacer(Modifier.height(6.dp))
         }
         section.lines.forEach { line -> LineRow(line, fontSize) }
-    }
-}
-
-@Composable
-private fun SongComConteudoBruto(rawContent: String?, fontSize: TextUnit) {
-    if (rawContent == null) {
-        Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
-        }
-    } else {
-        Text(
-            text = rawContent,
-            fontSize = fontSize,
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
     }
 }
 

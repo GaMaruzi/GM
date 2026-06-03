@@ -18,9 +18,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-// PR 1: AppState passa a usar DataStore para a pasta escolhida (URI persistida)
-// e CifrasRepository para listar os arquivos da pasta.
-// Favoritos e recentes ainda em memória — entram no PR 3.
 class AppState(application: Application) : AndroidViewModel(application) {
 
     private val context = application.applicationContext
@@ -34,6 +31,9 @@ class AppState(application: Application) : AndroidViewModel(application) {
     private val _songs = MutableStateFlow<List<Song>>(emptyList())
     val songs: StateFlow<List<Song>> = _songs.asStateFlow()
 
+    private val _loading = MutableStateFlow(false)
+    val loading: StateFlow<Boolean> = _loading.asStateFlow()
+
     private val _favorites = MutableStateFlow<Set<String>>(emptySet())
     val favorites: StateFlow<Set<String>> = _favorites.asStateFlow()
 
@@ -41,18 +41,21 @@ class AppState(application: Application) : AndroidViewModel(application) {
     val recents: StateFlow<List<String>> = _recents.asStateFlow()
 
     init {
-        // Quando a pasta muda (boot do app ou troca de pasta), recarrega a lista.
         viewModelScope.launch {
             prefs.folder.collect { saved ->
-                _songs.value = saved?.let { repo.listSongs(it.uri) } ?: emptyList()
+                if (saved == null) {
+                    _songs.value = emptyList()
+                } else {
+                    _loading.value = true
+                    _songs.value = repo.listSongs(saved.uri)
+                    _loading.value = false
+                }
             }
         }
     }
 
-    // Chamado depois do usuário confirmar a pasta no SAF picker.
     fun setFolder(uri: Uri) {
         viewModelScope.launch {
-            // Sem isso a URI fica inválida depois de reiniciar o app.
             context.contentResolver.takePersistableUriPermission(
                 uri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -75,9 +78,4 @@ class AppState(application: Application) : AndroidViewModel(application) {
     }
 
     fun song(id: String): Song? = _songs.value.find { it.id == id }
-
-    suspend fun readSongContent(id: String): String? {
-        val song = song(id) ?: return null
-        return repo.readContent(Uri.parse(song.id))
-    }
 }

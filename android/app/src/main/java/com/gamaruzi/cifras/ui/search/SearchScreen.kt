@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -64,6 +65,7 @@ enum class SearchTab { TODAS, FAVORITAS, RECENTES }
 fun SearchScreen(
     folderName: String,
     songs: List<Song>,
+    loading: Boolean,
     favorites: Set<String>,
     recents: List<String>,
     onOpenSong: (String) -> Unit,
@@ -184,8 +186,12 @@ fun SearchScreen(
                 }
             }
 
-            // Lista (ou estado vazio)
-            if (resultados.isEmpty()) {
+            // Lista (ou loading/estado vazio)
+            if (loading && songs.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (resultados.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                     Column(
                         modifier = Modifier.padding(top = 56.dp, start = 40.dp, end = 40.dp),
@@ -202,6 +208,7 @@ fun SearchScreen(
                             text = when {
                                 query.isNotEmpty() -> "Nada encontrado para \"$query\"."
                                 tab == SearchTab.FAVORITAS -> "Nenhuma favorita ainda. Toque na ★ de uma cifra."
+                                songs.isEmpty() -> "Nenhum arquivo .txt na pasta escolhida."
                                 else -> "Nada por aqui ainda."
                             },
                             fontSize = 16.sp,
