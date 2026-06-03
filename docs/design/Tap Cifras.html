@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tap Cifras — MVP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #c9c4d1;
+    background-image: radial-gradient(circle at 28% 18%, #d8d3df, #b9b3c6 70%);
+    display: flex; align-items: center; justify-content: center; min-height: 100vh;
+    font-family: 'Roboto', system-ui, sans-serif;
+  }
+  #stage { padding: 22px; }
+  input::placeholder { color: inherit; opacity: 0.6; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+</style>
+</head>
+<body>
+<div id="stage"><div id="root"></div></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="m3.jsx"></script>
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="ui.jsx"></script>
+<script type="text/babel" src="theory.jsx"></script>
+<script type="text/babel" src="render.jsx"></script>
+<script type="text/babel" src="songs.jsx"></script>
+<script type="text/babel" src="Empty.jsx"></script>
+<script type="text/babel" src="Search.jsx"></script>
+<script type="text/babel" src="Detail.jsx"></script>
+<script type="text/babel" src="Setlist.jsx"></script>
+<script type="text/babel" src="Stage.jsx"></script>
+<script type="text/babel" src="Settings.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "themeMode": "claro",
+  "dynamic": true,
+  "seed": "verde"
+}/*EDITMODE-END*/;
+
+function useSystemDark() {
+  const [d, setD] = useState(() => window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const on = () => setD(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return d;
+}
+
+function usePersistentSet(key) {
+  const [set, setSet] = useState(() => { try { return new Set(JSON.parse(localStorage.getItem(key) || '[]')); } catch { return new Set(); } });
+  const toggle = (id) => setSet((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); localStorage.setItem(key, JSON.stringify([...n])); return n; });
+  return [set, toggle];
+}
+function usePersistentJSON(key, init) {
+  const [v, setV] = useState(() => { try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : init; } catch { return init; } });
+  const set = (next) => setV((prev) => { const val = typeof next === 'function' ? next(prev) : next; localStorage.setItem(key, JSON.stringify(val)); return val; });
+  return [v, set];
+}
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const sysDark = useSystemDark();
+  const dark = t.themeMode === 'escuro' || (t.themeMode === 'sistema' && sysDark);
+  const seed = t.dynamic ? t.seed : 'violeta';
+  const C = buildScheme(seed, dark);
+
+  const SONGS = window.SONGS;
+  const [hasFolder, setHasFolder] = usePersistentJSON('tc:folder', false);
+  const [screen, setScreen] = useState(hasFolder ? 'search' : 'empty');
+  const [currentId, setCurrentId] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const [favorites, toggleFav] = usePersistentSet('tc:favs');
+  const [recents, setRecents] = usePersistentJSON('tc:recents', []);
+  const [setlist, setSetlist] = usePersistentJSON('tc:setlist', [SONGS[0].id, SONGS[3].id, SONGS[5].id]);
+  const [speeds, setSpeeds] = usePersistentJSON('tc:speeds', {});
+
+  const song = SONGS.find((s) => s.id === currentId);
+  const setSpeed = (id, v) => setSpeeds((p) => ({ ...p, [id]: v }));
+
+  const openSong = (id) => {
+    setCurrentId(id); setScreen('detail');
+    setRecents((r) => [id, ...r.filter((x) => x !== id)].slice(0, 12));
+  };
+  const pickFolder = () => { setHasFolder(true); setScreen('search'); };
+
+  // status bar foreground: stage is always dark-bg
+  const statusDark = screen === 'stage' ? true : dark;
+
+  return (
+    <React.Fragment>
+      <PhoneFrame scheme={C} statusDark={statusDark} bare={screen === 'stage'}>
+        {screen === 'empty' && <EmptyState C={C} onPick={pickFolder} />}
+
+        {screen === 'search' && (
+          <SearchScreen C={C} songs={SONGS} favorites={favorites} recents={recents}
+            folderName="Documentos/Cifras" onOpen={openSong} onToggleFav={toggleFav}
+            onOpenMenu={() => setMenuOpen(true)} onStartPalco={() => setScreen('setlist')} />
+        )}
+
+        {screen === 'detail' && song && (
+          <DetailScreen C={C} song={song} favorite={favorites.has(song.id)}
+            onBack={() => setScreen('search')} onToggleFav={toggleFav} onMenu={() => setMenuOpen(true)}
+            onStagePlay={(id) => { setSetlist((sl) => sl.includes(id) ? sl : [id, ...sl]); setScreen('stage'); }} />
+        )}
+
+        {screen === 'setlist' && (
+          <SetlistScreen C={C} songs={SONGS} setlist={setlist} setSetlist={setSetlist}
+            speeds={speeds} setSpeed={setSpeed} onBack={() => setScreen('search')}
+            onStart={() => setScreen('stage')} />
+        )}
+
+        {screen === 'stage' && (
+          <StageScreen C={C} songs={SONGS} setlist={setlist} speeds={speeds}
+            onExit={() => setScreen(currentId && setlist[0] === currentId ? 'detail' : 'setlist')}
+            onSpeedChange={setSpeed} />
+        )}
+
+        {screen === 'settings' && (
+          <SettingsScreen C={C} folderName="Documentos/Cifras" count={SONGS.length}
+            themeMode={t.themeMode} setThemeMode={(v) => setTweak('themeMode', v)}
+            dynamic={t.dynamic} setDynamic={(v) => setTweak('dynamic', v)}
+            onBack={() => setScreen('search')}
+            onChangeFolder={() => { setScreen('empty'); }} />
+        )}
+
+        {/* overflow menu */}
+        {menuOpen && (screen === 'search' || screen === 'detail') && (
+          <Menu C={C} onClose={() => setMenuOpen(false)} items={[
+            { label: 'Configurações', icon: 'info', onClick: () => setScreen('settings') },
+            { label: 'Trocar pasta', icon: 'folderOpen', onClick: () => setScreen('empty') },
+            { label: dark ? 'Tema claro' : 'Tema escuro', icon: dark ? 'lightMode' : 'darkMode', onClick: () => setTweak('themeMode', dark ? 'claro' : 'escuro') },
+          ]} />
+        )}
+      </PhoneFrame>
+
+      <TweaksPanel>
+        <TweakSection label="Tema do sistema" />
+        <TweakRadio label="Modo" value={t.themeMode} options={['sistema', 'claro', 'escuro']}
+          onChange={(v) => setTweak('themeMode', v)} />
+        <TweakSection label="Dynamic Color" />
+        <TweakToggle label="Cores dinâmicas (do wallpaper)" value={t.dynamic} onChange={(v) => setTweak('dynamic', v)} />
+        <TweakRadio label="Paleta semente" value={t.seed} options={['violeta', 'verde', 'ambar']}
+          onChange={(v) => setTweak('seed', v)} />
+      </TweaksPanel>
+    </React.Fragment>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tap Cifras — Ícone adaptativo</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #15131a; color: #E6E0E9; font-family: 'Roboto', system-ui, sans-serif; padding: 48px 32px 80px; }
+  .wrap { max-width: 880px; margin: 0 auto; }
+  h1 { font-weight: 500; font-size: 30px; margin: 0 0 4px; }
+  .sub { color: #9a93a6; font-size: 15px; margin-bottom: 40px; }
+  h2 { font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; color: #b9a9e8; margin: 44px 0 18px; font-weight: 700; }
+  .row { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-end; }
+  .cell { text-align: center; }
+  .cap { margin-top: 12px; font-size: 12.5px; color: #9a93a6; }
+  .icon { border-radius: 22%; overflow: hidden; box-shadow: 0 14px 34px rgba(0,0,0,0.45); }
+  .circle { border-radius: 50%; }
+  .squircle { border-radius: 28%; }
+  .rsquare { border-radius: 16%; }
+  .layerbox { background:
+    linear-gradient(45deg, #2a2730 25%, transparent 25%, transparent 75%, #2a2730 75%),
+    linear-gradient(45deg, #2a2730 25%, #211f26 25%, #211f26 75%, #2a2730 75%);
+    background-size: 16px 16px; background-position: 0 0, 8px 8px;
+    border-radius: 14px; padding: 0; display: inline-block; }
+  .swatches { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
+  .sw { display: flex; align-items: center; gap: 10px; background: #211f26; border-radius: 12px; padding: 10px 14px; font-size: 13px; }
+  .chip { width: 26px; height: 26px; border-radius: 7px; }
+  code { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #d0bcff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Tap Cifras — ícone adaptativo</h1>
+  <div class="sub">Foreground + background separados (Android adaptive icon, 108dp · zona segura central 66dp). A marca une o <b>toque</b> (ondas concêntricas do tap-to-advance) à <b>nota musical</b>.</div>
+
+  <!-- reusable SVG layer defs -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#5B43A6"/>
+        <stop offset="0.55" stop-color="#3A2E5C"/>
+        <stop offset="1" stop-color="#241B3D"/>
+      </linearGradient>
+      <radialGradient id="glow" cx="0.34" cy="0.3" r="0.8">
+        <stop offset="0" stop-color="#7A5CD0" stop-opacity="0.55"/>
+        <stop offset="1" stop-color="#7A5CD0" stop-opacity="0"/>
+      </radialGradient>
+      <!-- FOREGROUND: tap ripple + eighth note, white -->
+      <g id="fg">
+        <g fill="none" stroke="#ffffff">
+          <circle cx="40" cy="60" r="15" stroke-opacity="0.30" stroke-width="3"/>
+          <circle cx="40" cy="60" r="23" stroke-opacity="0.16" stroke-width="3"/>
+        </g>
+        <!-- note -->
+        <g fill="#ffffff">
+          <ellipse cx="40" cy="60" rx="11" ry="9" transform="rotate(-22 40 60)"/>
+          <rect x="49" y="30" width="5.5" height="32" rx="2.5"/>
+          <path d="M54.5 30c10 2.5 16 9 14.5 18-0.4 2.4-1.6 4.4-3.2 6 1.2-2.4 1.4-5 0.4-7.6-2-5.2-7-8.2-11.7-9.2V30z"/>
+        </g>
+      </g>
+    </defs>
+  </svg>
+
+  <h2>Camadas (drawables)</h2>
+  <div class="row">
+    <div class="cell">
+      <div class="layerbox">
+        <svg width="150" height="150" viewBox="0 0 108 108"><rect width="108" height="108" fill="url(#bg)"/><rect width="108" height="108" fill="url(#glow)"/></svg>
+      </div>
+      <div class="cap"><code>ic_launcher_background</code></div>
+    </div>
+    <div class="cell">
+      <div class="layerbox">
+        <svg width="150" height="150" viewBox="0 0 108 108"><circle cx="54" cy="54" r="33" fill="none" stroke="#b9a9e8" stroke-width="0.5" stroke-dasharray="2 2"/><use href="#fg"/></svg>
+      </div>
+      <div class="cap"><code>ic_launcher_foreground</code> · zona segura 66dp</div>
+    </div>
+  </div>
+
+  <h2>Composto em máscaras do launcher</h2>
+  <div class="row">
+    <div class="cell"><div class="icon circle"><svg width="120" height="120" viewBox="0 0 108 108"><rect width="108" height="108" fill="url(#bg)"/><rect width="108" height="108" fill="url(#glow)"/><use href="#fg"/></svg></div><div class="cap">Círculo</div></div>
+    <div class="cell"><div class="icon squircle"><svg width="120" height="120" viewBox="0 0 108 108"><rect width="108" height="108" fill="url(#bg)"/><rect width="108" height="108" fill="url(#glow)"/><use href="#fg"/></svg></div><div class="cap">Squircle</div></div>
+    <div class="cell"><div class="icon rsquare"><svg width="120" height="120" viewBox="0 0 108 108"><rect width="108" height="108" fill="url(#bg)"/><rect width="108" height="108" fill="url(#glow)"/><use href="#fg"/></svg></div><div class="cap">Quadrado arred.</div></div>
+    <div class="cell"><div class="icon" style="border-radius:50%"><svg width="64" height="64" viewBox="0 0 108 108"><rect width="108" height="108" fill="url(#bg)"/><rect width="108" height="108" fill="url(#glow)"/><use href="#fg"/></svg></div><div class="cap">48dp (lista)</div></div>
+  </div>
+
+  <h2>Tokens da marca</h2>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#5B43A6"></div><code>#5B43A6</code> primário</div>
+    <div class="sw"><div class="chip" style="background:#3A2E5C"></div><code>#3A2E5C</code> herança</div>
+    <div class="sw"><div class="chip" style="background:#241B3D"></div><code>#241B3D</code> sombra</div>
+    <div class="sw"><div class="chip" style="background:#ffffff"></div><code>#FFFFFF</code> foreground</div>
+  </div>
+</div>
+</body>
+</html>

@@ -12,6 +12,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Arquivos zip soltos na raiz (handoffs, downloads temporários)
+/*.zip
+
 # Claude Code — settings locais do dev (cada um tem o seu)
 .claude/settings.local.json
 

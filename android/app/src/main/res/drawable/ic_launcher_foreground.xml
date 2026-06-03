@@ -1,14 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Tap Cifras — foreground: nota colcheia branca + ondas de "tap" concêntricas.
+     Spec em docs/design/App Icon.html. Zona segura central 66dp. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Ícone music_note do Material centralizado e ampliado. -->
-    <group android:scaleX="3" android:scaleY="3"
-        android:translateX="18" android:translateY="18">
+
+    <!-- Tap ripples (círculos concêntricos translúcidos) -->
+    <path
+        android:pathData="M40,60 m-15,0 a15,15 0 1,0 30,0 a15,15 0 1,0 -30,0"
+        android:strokeColor="#4DFFFFFF"
+        android:strokeWidth="3"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M40,60 m-23,0 a23,23 0 1,0 46,0 a23,23 0 1,0 -46,0"
+        android:strokeColor="#29FFFFFF"
+        android:strokeWidth="3"
+        android:fillColor="#00000000" />
+
+    <!-- Cabeça da nota: elipse 11×9 em (40,60) rotacionada -22° -->
+    <group android:pivotX="40" android:pivotY="60" android:rotation="-22">
         <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M12,3v10.55c-0.59,-0.34 -1.27,-0.55 -2,-0.55 -2.21,0 -4,1.79 -4,4s1.79,4 4,4 4,-1.79 4,-4V7h4V3h-6z"/>
+            android:pathData="M29,60 a11,9 0 1,0 22,0 a11,9 0 1,0 -22,0"
+            android:fillColor="#FFFFFFFF" />
     </group>
+
+    <!-- Haste da nota -->
+    <path
+        android:pathData="M49,32.5 L54.5,32.5 A2.5,2.5 0 0,1 54.5,62 L49,62 Z"
+        android:fillColor="#FFFFFFFF" />
+
+    <!-- Bandeira (flag) -->
+    <path
+        android:pathData="M54.5,30 C64.5,32.5 70.5,39 69,48 C68.6,50.4 67.4,52.4 65.8,54 C67,51.6 67.2,49 66.2,46.4 C64.2,41.2 59.2,38.2 54.5,37.2 Z"
+        android:fillColor="#FFFFFFFF" />
 </vector>
