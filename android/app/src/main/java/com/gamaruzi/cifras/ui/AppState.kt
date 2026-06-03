@@ -18,7 +18,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 // Resultado de uma operação de adição em lote, para feedback no UI.
@@ -43,11 +42,11 @@ class AppState(application: Application) : AndroidViewModel(application) {
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
-    private val _favorites = MutableStateFlow<Set<String>>(emptySet())
-    val favorites: StateFlow<Set<String>> = _favorites.asStateFlow()
+    val favorites: StateFlow<Set<String>> = prefs.favorites
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
-    private val _recents = MutableStateFlow<List<String>>(emptyList())
-    val recents: StateFlow<List<String>> = _recents.asStateFlow()
+    val recents: StateFlow<List<String>> = prefs.recents
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _lastAddResult = MutableStateFlow<AddResult?>(null)
     val lastAddResult: StateFlow<AddResult?> = _lastAddResult.asStateFlow()
@@ -58,6 +57,10 @@ class AppState(application: Application) : AndroidViewModel(application) {
                 _loading.value = true
                 _songs.value = repo.loadLibrary(entries)
                 _loading.value = false
+                // Cada mudança na biblioteca dispara uma limpeza de
+                // favoritos/recentes órfãos. removeEntry já limpa imediato,
+                // mas isto cobre cenários de migração ou reset parcial.
+                prefs.pruneOrphans(entries.map { it.uri }.toSet())
             }
         }
     }
@@ -144,11 +147,11 @@ class AppState(application: Application) : AndroidViewModel(application) {
     fun consumeAddResult() { _lastAddResult.value = null }
 
     fun toggleFavorite(id: String) {
-        _favorites.update { atual -> if (id in atual) atual - id else atual + id }
+        viewModelScope.launch { prefs.toggleFavorite(id) }
     }
 
     fun markRecent(id: String) {
-        _recents.update { atual -> (listOf(id) + atual.filter { it != id }).take(12) }
+        viewModelScope.launch { prefs.markRecent(id) }
     }
 
     fun song(id: String): Song? = _songs.value.find { it.id == id }

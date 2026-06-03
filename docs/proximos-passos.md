@@ -35,10 +35,12 @@ Picker e `OpenMultipleDocuments`, cada URI é persistida via
 Implementado em `94ccfb0`. Continua válido após o refactor multimodal — o
 `CifraTextParser` roda quando `Song.format == TEXT`.
 
-### PR 3 — Favoritos + Recentes persistentes
-- [ ] DataStore para `Set<String>` de favoritos
-- [ ] DataStore para `List<String>` de recentes (MRU, máx 12)
-- [ ] `AppState` consome flows do DataStore em vez de in-memory
+### PR 3 — Favoritos + Recentes persistentes ✅
+Entregue. `UserPreferences` ganhou `favorites: Flow<Set<String>>` e
+`recents: Flow<List<String>>` (codec dedicado em `RecentsCodec` com regra MRU
+testada). `AppState` consome diretamente; toggle favorito e markRecent vão
+pro DataStore. `removeEntry` e `pruneOrphans` limpam favoritos/recentes
+órfãos automaticamente quando a biblioteca muda.
 
 ### PR 4 — Transposição funcional no Detail
 - [ ] Port de `docs/design/theory.jsx` → `domain/Theory.kt`
