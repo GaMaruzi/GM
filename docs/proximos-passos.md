@@ -105,6 +105,54 @@ após 5s ou ao toque.
 
 `versionName` subiu para **1.0.0** (versionCode 2).
 
+## Marco 3.5 — Polish e organização (PR 10–16)
+Sete PRs pequenos que pegam o app pós-1.0 e o deixam mais utilizável pra mim.
+
+### PR 10 — Home redesign ✅
+Search bar com ⚙️ direto à vista (sem precisar de menu) e ➕ abrindo
+ModalBottomSheet com "Imagem" e "PDF ou texto". FAB centralizado com
+ícone PlayCircle em vez do ExtendedFAB com texto. Limpeza do "1.0.0-debug · debug"
+no Settings.
+
+### PR 11 — Pastas ✅
+`Folder(id, name)` + `LibraryEntry.folderId` (codec v3 com decoder
+back-compat v1/v2). Persistência `folders_v1` em DataStore. UI: header
+da Search vira breadcrumb (Home na raiz, ←  + nome na pasta), subpastas
+listadas no topo quando na raiz, busca é global com chip da pasta de
+cada cifra como pista visual. Menu ⋮ ganhou "Mover para pasta…".
+
+### PR 12 — Renomear sem extensão ✅
+O `RenomearDialog` edita só o stem; ".ext" vira sufixo fixo no
+trailingIcon. `TextFieldValue` com `selection=(0,length)` + `FocusRequester`
+abrem o teclado com o nome inteiro selecionado.
+
+### PR 13 — Detail funcional + bug do songId ✅
+Corrige bug onde TXT e PDF não abriam ao clicar — duplo URL-decoding
+(URLEncoder + Navigation Uri.decode + URLDecoder em cima) destruía
+`%3A` original em URIs do MediaProvider. Solução: `android.net.Uri.encode`
+e remover o decode manual. Imagem ganha `ContentScale.Fit` + pinch zoom.
+Menu ⋮ agora ativo: Renomear/Mover/Compartilhar (Intent.ACTION_SEND)/Excluir.
+Botão "Tocar no palco" vira FilledTonalButton centralizado.
+
+### PR 14 — Repertórios (plural) ✅
+Modelo `Repertoire(id, name, songIds)` em `repertoires_v1` com
+codec próprio. Migração 1x converte o antigo `setlist_v1` em
+"Repertório padrão". Telas em `ui/repertoires/`: lista, editor (BottomAppBar
+com slot do FAB centralizado), seletor multi-select com checkbox + filtro
+por pasta + busca. Speeds continuam globais por música (decisão
+"começar simples"). Rotas novas; Stage aceita `?rep=` ou `?song=` opcional.
+
+### PR 15 — Stage: tap esquerda/direita + zoom IMG/PDF ✅
+`detectTapGestures` divide a tela em metades — esquerda = anterior,
+direita = próxima (não mais double-tap). Estado `imageScale` por música
+(1.0–4.0) com pinch (`detectTransformGestures`) + botões A−/A+ que viram
+ZoomOut/ZoomIn quando o formato é IMAGE/PDF. Dica inicial reescrita.
+
+### PR 16 — Revisão geral ✅
+Lint + testes verdes. Cópia conferida (nenhum "setlist" residual nas
+telas — só na migração interna, semântico). `versionName` para **1.1.0**
+(versionCode 3).
+
 ## Marco 4 — Refatorar quando doer
 Só quando a dor for real, não preventivamente:
 - [ ] Migrar de DataStore para **Room** quando o índice de cifras passar de
