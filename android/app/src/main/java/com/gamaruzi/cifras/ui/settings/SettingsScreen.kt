@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.AlertDialog
@@ -114,6 +113,17 @@ fun SettingsScreen(appState: AppState, onBack: () -> Unit) {
             Spacer(Modifier.height(20.dp))
             SecaoTitulo("Aparência")
             Cartao {
+                LinhaToggle(
+                    titulo = "Cores dinâmicas (Material You)",
+                    subtitulo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+                        "Usa a paleta do papel de parede. Sobrepõe o verde do Tap Cifras."
+                    else
+                        "Disponível só no Android 12+. Mantendo verde padrão.",
+                    checked = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
+                    enabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
+                    onCheckedChange = appState::setDynamicColor,
+                )
+                Spacer(Modifier.height(16.dp))
                 Text(
                     "Tema",
                     fontSize = 14.sp,
@@ -124,17 +134,6 @@ fun SettingsScreen(appState: AppState, onBack: () -> Unit) {
                 SegmentedTema(
                     selecionado = themeMode,
                     onSelect = appState::setThemeMode,
-                )
-                Spacer(Modifier.height(16.dp))
-                LinhaToggle(
-                    titulo = "Cores dinâmicas (Material You)",
-                    subtitulo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-                        "Usa a paleta do papel de parede. Sobrepõe o verde do Tap Cifras."
-                    else
-                        "Disponível só no Android 12+. Mantendo verde padrão.",
-                    checked = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
-                    enabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
-                    onCheckedChange = appState::setDynamicColor,
                 )
             }
 
@@ -332,7 +331,6 @@ private fun SegmentedTema(
     onSelect: (ThemeMode) -> Unit,
 ) {
     val opcoes = listOf(
-        Triple(ThemeMode.SISTEMA, "Sistema", Icons.Filled.PhoneAndroid),
         Triple(ThemeMode.CLARO, "Claro", Icons.Filled.LightMode),
         Triple(ThemeMode.ESCURO, "Escuro", Icons.Filled.DarkMode),
     )

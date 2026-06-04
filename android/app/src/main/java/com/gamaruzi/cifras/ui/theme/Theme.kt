@@ -1,7 +1,6 @@
 package com.gamaruzi.cifras.ui.theme
 
 import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -74,18 +73,14 @@ private val DarkColors = darkColorScheme(
 
 @Composable
 fun CifrasTheme(
-    themeMode: ThemeMode = ThemeMode.SISTEMA,
+    themeMode: ThemeMode = ThemeMode.CLARO,
     // Padrão da marca: verde Spotify sempre. Material You (cores do wallpaper)
     // é opt-in via Settings — quando ligado, sobrepõe a paleta verde com
     // cores derivadas do wallpaper no Android 12+.
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val darkTheme = when (themeMode) {
-        ThemeMode.SISTEMA -> isSystemInDarkTheme()
-        ThemeMode.CLARO -> false
-        ThemeMode.ESCURO -> true
-    }
+    val darkTheme = themeMode == ThemeMode.ESCURO
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current

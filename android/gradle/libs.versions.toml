@@ -13,6 +13,7 @@ navigation-compose = "2.8.5"
 datastore = "1.1.1"
 documentfile = "1.0.1"
 coil = "2.7.0"
+splashscreen = "1.0.1"
 
 # Compose
 compose-bom = "2024.12.01"
@@ -51,6 +52,10 @@ androidx-documentfile = { group = "androidx.documentfile", name = "documentfile"
 # Renderização de imagens (Compose). Lazy + cache em memória/disco; usado com URIs
 # locais somente — não faz tráfego de rede no app. Tamanho ≈ 280 KB no APK.
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+
+# SplashScreen API (Android 12+). Backport para Android 9–11; sem telemetria.
+# Tamanho ≈ 12 KB no APK.
+androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
 
 # Testes
 junit = { group = "junit", name = "junit", version.ref = "junit" }

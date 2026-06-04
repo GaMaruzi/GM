@@ -52,7 +52,7 @@ class AppState(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val themeMode: StateFlow<ThemeMode> = prefs.themeMode
-        .stateIn(viewModelScope, SharingStarted.Eagerly, ThemeMode.SISTEMA)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ThemeMode.CLARO)
 
     val dynamicColor: StateFlow<Boolean> = prefs.dynamicColor
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)

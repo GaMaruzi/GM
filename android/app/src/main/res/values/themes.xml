@@ -8,4 +8,17 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
     </style>
+
+    <!--
+      Splash screen via androidx.core.splashscreen (Android 12+ nativo,
+      backport até API 28). Fundo verde sólido + logo branco. O slogan
+      "Feito por músicos para músicos" entra como overlay Compose durante
+      1.2s para garantir tempo de leitura (ver MainActivity).
+      postSplashScreenTheme volta pro tema padrão depois.
+    -->
+    <style name="Theme.Cifras.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.Cifras</item>
+    </style>
 </resources>

@@ -3,4 +3,8 @@
     <!-- Cor base usada como fallback enquanto o ícone adaptivo carrega
          (corresponde ao stop final do gradiente do background). -->
     <color name="ic_launcher_background">#12953F</color>
+
+    <!-- Splash screen: verde Spotify sólido. O slogan é renderizado em
+         Compose por cima (ver MainActivity) para garantir 1.2s de leitura. -->
+    <color name="splash_background">#1DB954</color>
 </resources>
