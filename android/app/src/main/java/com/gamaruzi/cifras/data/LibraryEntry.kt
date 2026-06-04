@@ -13,6 +13,7 @@ data class LibraryEntry(
     val format: SongFormat,
     val sizeBytes: Long,
     val customName: String? = null,
+    val folderId: String? = null,
 ) {
     // Nome a ser usado em todos os pontos de UI (lista, detail, busca).
     val nomeExibicao: String get() = customName ?: displayName
@@ -22,10 +23,9 @@ data class LibraryEntry(
 // caractere de controle ausente de qualquer nome de arquivo válido em Android,
 // então é seguro como delimitador sem precisar de escape.
 //
-// Esquema v2 (5 campos): uri | displayName | format | sizeBytes | customName
-// O decoder aceita também o esquema v1 (4 campos, sem customName) para que
-// bibliotecas salvas antes do PR-D continuem funcionando após o upgrade. O
-// encoder sempre escreve no formato v2.
+// Esquema v3 (6 campos): uri | displayName | format | sizeBytes | customName | folderId
+// O decoder aceita também v2 (5 campos, sem folderId) e v1 (4 campos, sem
+// customName nem folderId). Encoder sempre escreve v3.
 internal object LibraryEntryCodec {
     private const val SEP = ""
 
@@ -36,20 +36,23 @@ internal object LibraryEntryCodec {
             entry.format.name,
             entry.sizeBytes.toString(),
             entry.customName.orEmpty(),
+            entry.folderId.orEmpty(),
         ).joinToString(SEP)
 
     fun decode(raw: String): LibraryEntry? {
         val parts = raw.split(SEP)
-        if (parts.size != 4 && parts.size != 5) return null
+        if (parts.size !in 4..6) return null
         val format = runCatching { SongFormat.valueOf(parts[2]) }.getOrNull() ?: return null
         val size = parts[3].toLongOrNull() ?: return null
-        val customName = if (parts.size == 5 && parts[4].isNotEmpty()) parts[4] else null
+        val customName = if (parts.size >= 5 && parts[4].isNotEmpty()) parts[4] else null
+        val folderId = if (parts.size >= 6 && parts[5].isNotEmpty()) parts[5] else null
         return LibraryEntry(
             uri = parts[0],
             displayName = parts[1],
             format = format,
             sizeBytes = size,
             customName = customName,
+            folderId = folderId,
         )
     }
 }

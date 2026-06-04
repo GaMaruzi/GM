@@ -44,6 +44,7 @@ fun AppNavHost(appState: AppState = viewModel()) {
     val loading by appState.loading.collectAsStateWithLifecycle()
     val favorites by appState.favorites.collectAsStateWithLifecycle()
     val recents by appState.recents.collectAsStateWithLifecycle()
+    val folders by appState.folders.collectAsStateWithLifecycle()
     val scrollOffsets by appState.scrollOffsets.collectAsStateWithLifecycle()
     val lastAddResult by appState.lastAddResult.collectAsStateWithLifecycle()
 
@@ -115,6 +116,7 @@ fun AppNavHost(appState: AppState = viewModel()) {
                 loading = loading,
                 favorites = favorites,
                 recents = recents,
+                folders = folders,
                 snackbarHostState = snackbarHostState,
                 onOpenSong = { id ->
                     appState.markRecent(id)
@@ -132,6 +134,10 @@ fun AppNavHost(appState: AppState = viewModel()) {
                 },
                 onRename = appState::renameEntry,
                 onDelete = appState::removeFromLibrary,
+                onCreateFolder = appState::createFolder,
+                onRenameFolder = appState::renameFolder,
+                onDeleteFolder = appState::deleteFolder,
+                onMoveToFolder = appState::moveToFolder,
                 onStartStage = { navController.navigate(Rotas.SETLIST) },
             )
         }

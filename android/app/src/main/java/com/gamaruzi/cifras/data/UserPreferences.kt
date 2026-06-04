@@ -26,6 +26,7 @@ class UserPreferences(private val context: Context) {
     private val keyScrollOffsets = stringPreferencesKey("scroll_offsets_v1")
     private val keySetlist = stringPreferencesKey("setlist_v1")
     private val keySpeeds = stringPreferencesKey("speeds_v1")
+    private val keyFolders = stringSetPreferencesKey("folders_v1")
 
     val library: Flow<List<LibraryEntry>> = context.dataStore.data.map { prefs ->
         prefs[keyLibrary]
@@ -64,6 +65,15 @@ class UserPreferences(private val context: Context) {
     // é idêntica (Map<URI, Int>).
     val speeds: Flow<Map<String, Int>> = context.dataStore.data.map { prefs ->
         ScrollCodec.decode(prefs[keySpeeds].orEmpty())
+    }
+
+    // Pastas criadas pelo usuário. Ordenadas pelo nome em lowercase para a UI
+    // mostrar tudo no mesmo critério da biblioteca.
+    val folders: Flow<List<Folder>> = context.dataStore.data.map { prefs ->
+        prefs[keyFolders]
+            .orEmpty()
+            .mapNotNull(FolderCodec::decode)
+            .sortedBy { it.name.lowercase() }
     }
 
     suspend fun addEntries(novas: List<LibraryEntry>) {
@@ -120,6 +130,7 @@ class UserPreferences(private val context: Context) {
             prefs.remove(keyScrollOffsets)
             prefs.remove(keySetlist)
             prefs.remove(keySpeeds)
+            prefs.remove(keyFolders)
         }
     }
 
@@ -187,6 +198,64 @@ class UserPreferences(private val context: Context) {
             prefs.remove(keySpeeds)
         }
     }
+
+    // --- Pastas ---
+
+    suspend fun addFolder(name: String): String {
+        val id = java.util.UUID.randomUUID().toString()
+        context.dataStore.edit { prefs ->
+            val atual = prefs[keyFolders].orEmpty()
+            prefs[keyFolders] = atual + FolderCodec.encode(Folder(id, name.trim()))
+        }
+        return id
+    }
+
+    suspend fun renameFolder(id: String, novoNome: String) {
+        val nome = novoNome.trim()
+        if (nome.isBlank()) return
+        context.dataStore.edit { prefs ->
+            val atualizado = prefs[keyFolders].orEmpty()
+                .mapNotNull(FolderCodec::decode)
+                .map { if (it.id == id) it.copy(name = nome) else it }
+                .map(FolderCodec::encode)
+                .toSet()
+            prefs[keyFolders] = atualizado
+        }
+    }
+
+    // Remove a pasta e devolve à raiz qualquer cifra que estivesse nela.
+    suspend fun deleteFolder(id: String) {
+        context.dataStore.edit { prefs ->
+            val pastasNovas = prefs[keyFolders].orEmpty()
+                .mapNotNull(FolderCodec::decode)
+                .filter { it.id != id }
+                .map(FolderCodec::encode)
+                .toSet()
+            prefs[keyFolders] = pastasNovas
+
+            val libNova = prefs[keyLibrary].orEmpty()
+                .mapNotNull(LibraryEntryCodec::decode)
+                .map { if (it.folderId == id) it.copy(folderId = null) else it }
+                .map(LibraryEntryCodec::encode)
+                .toSet()
+            prefs[keyLibrary] = libNova
+        }
+    }
+
+    // folderId null = mover para a raiz.
+    suspend fun moveToFolder(uri: String, folderId: String?) {
+        context.dataStore.edit { prefs ->
+            val atual = prefs[keyLibrary].orEmpty().mapNotNull(LibraryEntryCodec::decode)
+            val achou = atual.any { it.uri == uri }
+            if (!achou) return@edit
+            prefs[keyLibrary] = atual
+                .map { if (it.uri == uri) it.copy(folderId = folderId) else it }
+                .map(LibraryEntryCodec::encode)
+                .toSet()
+        }
+    }
+
+    // --- ---
 
     suspend fun setSpeed(songId: String, pxPerSecond: Int) {
         context.dataStore.edit { prefs ->

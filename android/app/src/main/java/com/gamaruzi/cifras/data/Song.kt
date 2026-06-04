@@ -17,7 +17,8 @@ data class Song(
     val ext: String,
     val format: SongFormat,
     val sizeBytes: Long,
-    val sections: List<Section>
+    val sections: List<Section>,
+    val folderId: String? = null,
 )
 
 data class Section(

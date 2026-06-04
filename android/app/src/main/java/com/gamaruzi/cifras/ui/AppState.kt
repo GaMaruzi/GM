@@ -7,6 +7,7 @@ import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamaruzi.cifras.data.CifrasRepository
+import com.gamaruzi.cifras.data.Folder
 import com.gamaruzi.cifras.data.LibraryEntry
 import com.gamaruzi.cifras.data.SizeLimits
 import com.gamaruzi.cifras.data.Song
@@ -63,6 +64,9 @@ class AppState(application: Application) : AndroidViewModel(application) {
 
     val speeds: StateFlow<Map<String, Int>> = prefs.speeds
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    val folders: StateFlow<List<Folder>> = prefs.folders
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _lastAddResult = MutableStateFlow<AddResult?>(null)
     val lastAddResult: StateFlow<AddResult?> = _lastAddResult.asStateFlow()
@@ -204,6 +208,23 @@ class AppState(application: Application) : AndroidViewModel(application) {
 
     fun setSpeed(songId: String, pxPerSecond: Int) {
         viewModelScope.launch { prefs.setSpeed(songId, pxPerSecond) }
+    }
+
+    fun createFolder(name: String) {
+        if (name.isBlank()) return
+        viewModelScope.launch { prefs.addFolder(name) }
+    }
+
+    fun renameFolder(id: String, novoNome: String) {
+        viewModelScope.launch { prefs.renameFolder(id, novoNome) }
+    }
+
+    fun deleteFolder(id: String) {
+        viewModelScope.launch { prefs.deleteFolder(id) }
+    }
+
+    fun moveToFolder(uri: String, folderId: String?) {
+        viewModelScope.launch { prefs.moveToFolder(uri, folderId) }
     }
 
     fun song(id: String): Song? = _songs.value.find { it.id == id }

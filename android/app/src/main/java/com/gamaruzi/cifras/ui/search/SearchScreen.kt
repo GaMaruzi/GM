@@ -19,12 +19,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
@@ -62,17 +67,24 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gamaruzi.cifras.data.Folder
 import com.gamaruzi.cifras.data.Song
 import com.gamaruzi.cifras.data.SongFormat
 import kotlinx.coroutines.launch
@@ -87,6 +99,7 @@ fun SearchScreen(
     loading: Boolean,
     favorites: Set<String>,
     recents: List<String>,
+    folders: List<Folder>,
     snackbarHostState: SnackbarHostState,
     onOpenSong: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
@@ -95,24 +108,48 @@ fun SearchScreen(
     onAddDocs: () -> Unit,
     onRename: (String, String) -> Unit,
     onDelete: (String) -> Unit,
+    onCreateFolder: (String) -> Unit,
+    onRenameFolder: (String, String) -> Unit,
+    onDeleteFolder: (String) -> Unit,
+    onMoveToFolder: (String, String?) -> Unit,
     onStartStage: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
     var tab by remember { mutableStateOf(SearchTab.TODAS) }
+    var pastaAtualId by remember { mutableStateOf<String?>(null) }
     var sheetAberta by remember { mutableStateOf(false) }
+    var dialogNovaPasta by remember { mutableStateOf(false) }
+    var pastaParaRenomear by remember { mutableStateOf<Folder?>(null) }
+    var pastaParaExcluir by remember { mutableStateOf<Folder?>(null) }
     var songParaRenomear by remember { mutableStateOf<Song?>(null) }
     var songParaExcluir by remember { mutableStateOf<Song?>(null) }
+    var songParaMover by remember { mutableStateOf<Song?>(null) }
 
-    val resultados = remember(songs, favorites, recents, query, tab) {
+    // Quando a pasta atual deixa de existir (ex: foi removida), volta pra raiz.
+    val pastaAtual = folders.firstOrNull { it.id == pastaAtualId }
+    if (pastaAtualId != null && pastaAtual == null) {
+        pastaAtualId = null
+    }
+
+    val buscando = query.trim().isNotEmpty()
+
+    val resultados = remember(songs, favorites, recents, query, tab, pastaAtualId, buscando) {
+        // Pasta escopa a navegação só quando não estamos buscando — busca é global.
+        val noEscopo = if (buscando) songs else songs.filter { it.folderId == pastaAtualId }
         val base = when (tab) {
-            SearchTab.TODAS -> songs
-            SearchTab.FAVORITAS -> songs.filter { it.id in favorites }
-            SearchTab.RECENTES -> recents.mapNotNull { id -> songs.find { it.id == id } }
+            SearchTab.TODAS -> noEscopo
+            SearchTab.FAVORITAS -> noEscopo.filter { it.id in favorites }
+            SearchTab.RECENTES -> recents.mapNotNull { id -> noEscopo.find { it.id == id } }
         }
         val q = query.trim().lowercase()
         if (q.isEmpty()) base
         else base.filter { (it.file + " " + it.genre).lowercase().contains(q) }
     }
+
+    // Subpastas a mostrar no topo da lista quando estamos na raiz, sem busca e tab=TODAS.
+    val mostrarPastas = !buscando && pastaAtualId == null && tab == SearchTab.TODAS
+    val cifrasPorPasta = remember(songs) { songs.groupBy { it.folderId }.mapValues { it.value.size } }
+    val pastasMap = remember(folders) { folders.associateBy { it.id } }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -174,23 +211,67 @@ fun SearchScreen(
                 )
             }
 
-            // Status da biblioteca
+            // Cabeçalho de localização: "Biblioteca" na raiz, ou breadcrumb com
+            // a pasta atual (clicar no Home volta; ⋮ permite renomear/excluir).
+            val totalNoEscopo = if (buscando) bibliotecaSize else (cifrasPorPasta[pastaAtualId] ?: 0)
             Row(
-                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 6.dp, bottom = 8.dp),
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    Icons.Filled.Folder,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(Modifier.size(7.dp))
-                Text(
-                    text = "Sua biblioteca · $bibliotecaSize ${if (bibliotecaSize == 1) "cifra" else "cifras"}",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (pastaAtual != null) {
+                    IconButton(
+                        onClick = { pastaAtualId = null },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Voltar para a biblioteca",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    Spacer(Modifier.size(4.dp))
+                    Icon(
+                        Icons.Filled.Folder,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.size(7.dp))
+                    Text(
+                        text = pastaAtual.name,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "$totalNoEscopo",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.size(4.dp))
+                    PastaOverflow(
+                        onRenomear = { pastaParaRenomear = pastaAtual },
+                        onExcluir = { pastaParaExcluir = pastaAtual },
+                    )
+                } else {
+                    Spacer(Modifier.size(8.dp))
+                    Icon(
+                        Icons.Filled.Home,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.size(8.dp))
+                    Text(
+                        text = "Biblioteca · $bibliotecaSize ${if (bibliotecaSize == 1) "cifra" else "cifras"}",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
             // Filter chips
@@ -241,13 +322,29 @@ fun SearchScreen(
                 }
             } else {
                 LazyColumn(contentPadding = PaddingValues(bottom = 96.dp)) {
+                    if (mostrarPastas && folders.isNotEmpty()) {
+                        items(folders, key = { "folder-" + it.id }) { folder ->
+                            PastaItem(
+                                folder = folder,
+                                contagem = cifrasPorPasta[folder.id] ?: 0,
+                                onClick = { pastaAtualId = folder.id },
+                                onRenomear = { pastaParaRenomear = folder },
+                                onExcluir = { pastaParaExcluir = folder },
+                            )
+                        }
+                    }
                     items(resultados, key = { it.id }) { song ->
+                        val pastaDaSong = song.folderId?.let { pastasMap[it] }
                         SongItem(
                             song = song,
                             isFavorite = song.id in favorites,
+                            // Mostra chip de pasta quando estamos buscando (escopo global)
+                            // e a cifra mora em alguma pasta — orienta o usuário.
+                            pastaInfo = if (buscando) pastaDaSong else null,
                             onClick = { onOpenSong(song.id) },
                             onToggleFav = { onToggleFavorite(song.id) },
                             onRename = { songParaRenomear = song },
+                            onMove = { songParaMover = song },
                             onDelete = { songParaExcluir = song },
                         )
                     }
@@ -260,7 +357,58 @@ fun SearchScreen(
         AdicionarBottomSheet(
             onAddImages = { sheetAberta = false; onAddImages() },
             onAddDocs = { sheetAberta = false; onAddDocs() },
+            onNovaPasta = { sheetAberta = false; dialogNovaPasta = true },
             onDismiss = { sheetAberta = false },
+        )
+    }
+
+    if (dialogNovaPasta) {
+        NovaPastaDialog(
+            onDismiss = { dialogNovaPasta = false },
+            onConfirm = { nome ->
+                onCreateFolder(nome)
+                dialogNovaPasta = false
+            },
+        )
+    }
+
+    pastaParaRenomear?.let { folder ->
+        RenomearPastaDialog(
+            nomeAtual = folder.name,
+            onDismiss = { pastaParaRenomear = null },
+            onConfirm = { novoNome ->
+                onRenameFolder(folder.id, novoNome)
+                pastaParaRenomear = null
+            },
+        )
+    }
+
+    pastaParaExcluir?.let { folder ->
+        ExcluirPastaDialog(
+            folder = folder,
+            cifrasNaPasta = cifrasPorPasta[folder.id] ?: 0,
+            onDismiss = { pastaParaExcluir = null },
+            onConfirm = {
+                if (pastaAtualId == folder.id) pastaAtualId = null
+                onDeleteFolder(folder.id)
+                pastaParaExcluir = null
+            },
+        )
+    }
+
+    songParaMover?.let { song ->
+        MoverParaPastaDialog(
+            song = song,
+            folders = folders,
+            onDismiss = { songParaMover = null },
+            onMover = { folderId ->
+                onMoveToFolder(song.id, folderId)
+                songParaMover = null
+            },
+            onCriarNova = {
+                songParaMover = null
+                dialogNovaPasta = true
+            },
         )
     }
 
@@ -310,9 +458,11 @@ private fun Chip(
 private fun SongItem(
     song: Song,
     isFavorite: Boolean,
+    pastaInfo: Folder?,
     onClick: () -> Unit,
     onToggleFav: () -> Unit,
     onRename: () -> Unit,
+    onMove: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var overflowExpanded by remember { mutableStateOf(false) }
@@ -350,13 +500,20 @@ private fun SongItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    text = subtitulo(song),
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = subtitulo(song),
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (pastaInfo != null) {
+                        Spacer(Modifier.size(8.dp))
+                        ChipDePasta(pastaInfo.name)
+                    }
+                }
             }
             IconButton(
                 onClick = onToggleFav,
@@ -390,6 +547,11 @@ private fun SongItem(
                         text = { Text("Renomear") },
                         leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                         onClick = { overflowExpanded = false; onRename() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Mover para pasta…") },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null) },
+                        onClick = { overflowExpanded = false; onMove() },
                     )
                     DropdownMenuItem(
                         text = { Text("Excluir") },
@@ -459,6 +621,7 @@ private fun RenomearDialog(
 private fun AdicionarBottomSheet(
     onAddImages: () -> Unit,
     onAddDocs: () -> Unit,
+    onNovaPasta: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -530,6 +693,30 @@ private fun AdicionarBottomSheet(
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                 )
             }
+            Surface(
+                onClick = { fechar(onNovaPasta) },
+                color = Color.Transparent,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                ListItem(
+                    leadingContent = {
+                        Icon(
+                            Icons.Filled.CreateNewFolder,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                    headlineContent = { Text("Nova pasta", fontSize = 16.sp) },
+                    supportingContent = {
+                        Text(
+                            "Para organizar suas cifras",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                )
+            }
         }
     }
 }
@@ -554,6 +741,327 @@ private fun ExcluirDialog(
                 Text("Excluir", color = MaterialTheme.colorScheme.error)
             }
         },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        },
+    )
+}
+
+@Composable
+private fun PastaItem(
+    folder: Folder,
+    contagem: Int,
+    onClick: () -> Unit,
+    onRenomear: () -> Unit,
+    onExcluir: () -> Unit,
+) {
+    Surface(onClick = onClick, color = Color.Transparent) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 24.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.Folder,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            Spacer(Modifier.size(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = folder.name,
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "$contagem ${if (contagem == 1) "cifra" else "cifras"}",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            PastaOverflow(onRenomear = onRenomear, onExcluir = onExcluir)
+        }
+    }
+}
+
+@Composable
+private fun PastaOverflow(
+    onRenomear: () -> Unit,
+    onExcluir: () -> Unit,
+) {
+    var aberto by remember { mutableStateOf(false) }
+    Box {
+        IconButton(
+            onClick = { aberto = true },
+            modifier = Modifier.size(44.dp).clip(CircleShape),
+        ) {
+            Icon(
+                Icons.Filled.MoreVert,
+                contentDescription = "Opções da pasta",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
+            DropdownMenuItem(
+                text = { Text("Renomear pasta") },
+                leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                onClick = { aberto = false; onRenomear() },
+            )
+            DropdownMenuItem(
+                text = { Text("Excluir pasta") },
+                leadingIcon = {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                },
+                onClick = { aberto = false; onExcluir() },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChipDePasta(nome: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        shape = RoundedCornerShape(6.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Filled.Folder,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(12.dp),
+            )
+            Spacer(Modifier.size(4.dp))
+            Text(
+                text = nome,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+@Composable
+private fun NovaPastaDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var texto by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Nova pasta") },
+        text = {
+            OutlinedTextField(
+                value = texto,
+                onValueChange = { texto = it },
+                label = { Text("Nome") },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(texto.trim()) },
+                enabled = texto.trim().isNotEmpty(),
+            ) { Text("Criar") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        },
+    )
+}
+
+@Composable
+private fun RenomearPastaDialog(
+    nomeAtual: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var texto by remember(nomeAtual) {
+        mutableStateOf(TextFieldValue(nomeAtual, TextRange(0, nomeAtual.length)))
+    }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Renomear pasta") },
+        text = {
+            OutlinedTextField(
+                value = texto,
+                onValueChange = { texto = it },
+                label = { Text("Nome") },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(texto.text.trim()) },
+                enabled = texto.text.trim().isNotEmpty() && texto.text.trim() != nomeAtual,
+            ) { Text("Salvar") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        },
+    )
+}
+
+@Composable
+private fun ExcluirPastaDialog(
+    folder: Folder,
+    cifrasNaPasta: Int,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Excluir pasta?") },
+        text = {
+            Text(
+                if (cifrasNaPasta == 0)
+                    "\"${folder.name}\" será removida. Como está vazia, nenhuma cifra é afetada."
+                else
+                    "\"${folder.name}\" será removida. As $cifrasNaPasta cifras que estão " +
+                        "dentro voltam para a raiz da biblioteca (nada é apagado).",
+                fontSize = 14.sp,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Excluir", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        },
+    )
+}
+
+@Composable
+private fun MoverParaPastaDialog(
+    song: Song,
+    folders: List<Folder>,
+    onDismiss: () -> Unit,
+    onMover: (String?) -> Unit,
+    onCriarNova: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Mover \"${song.title}\"") },
+        text = {
+            Column {
+                // Opção raiz
+                Surface(
+                    onClick = { onMover(null) },
+                    color = Color.Transparent,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Filled.Home,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.size(12.dp))
+                        Text("Raiz (biblioteca)", fontSize = 15.sp, modifier = Modifier.weight(1f))
+                        if (song.folderId == null) {
+                            Icon(
+                                Icons.Filled.Check,
+                                contentDescription = "Atual",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                }
+                folders.forEach { folder ->
+                    Surface(
+                        onClick = { onMover(folder.id) },
+                        color = Color.Transparent,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Filled.Folder,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                            Spacer(Modifier.size(12.dp))
+                            Text(
+                                folder.name,
+                                fontSize = 15.sp,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (song.folderId == folder.id) {
+                                Icon(
+                                    Icons.Filled.Check,
+                                    contentDescription = "Atual",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Surface(
+                    onClick = onCriarNova,
+                    color = Color.Transparent,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Filled.CreateNewFolder,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.size(12.dp))
+                        Text(
+                            "Criar nova pasta…",
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancelar") }
         },

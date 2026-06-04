@@ -6,6 +6,8 @@ import org.junit.Test
 
 class LibraryEntryCodecTest {
 
+    private val SEP = ""
+
     @Test
     fun `roundtrip preserva todos os campos`() {
         val original = LibraryEntry(
@@ -118,6 +120,54 @@ class LibraryEntryCodecTest {
             format = SongFormat.IMAGE,
             sizeBytes = 100,
             customName = "Música: Çoração (versão acústica)",
+        )
+        assertEquals(entry, LibraryEntryCodec.decode(LibraryEntryCodec.encode(entry)))
+    }
+
+    @Test
+    fun `folderId e preservado no roundtrip v3`() {
+        val entry = LibraryEntry(
+            uri = "content://x",
+            displayName = "Asa.txt",
+            format = SongFormat.TEXT,
+            sizeBytes = 80,
+            folderId = "folder-uuid-1",
+        )
+        val decoded = LibraryEntryCodec.decode(LibraryEntryCodec.encode(entry))
+        assertEquals(entry, decoded)
+        assertEquals("folder-uuid-1", decoded?.folderId)
+    }
+
+    @Test
+    fun `folderId null sobrevive ao roundtrip v3`() {
+        val entry = LibraryEntry("content://x", "n.txt", SongFormat.TEXT, 10)
+        val decoded = LibraryEntryCodec.decode(LibraryEntryCodec.encode(entry))
+        assertNull(decoded?.folderId)
+    }
+
+    @Test
+    fun `decoder aceita esquema v2 de 5 campos sem folderId`() {
+        // v2 = bibliotecas criadas entre PR-D e PR 11. Não tem folderId.
+        val v2raw = listOf(
+            "content://x", "nome.txt", "TEXT", "200", "Custom"
+        ).joinToString(SEP)
+        val decoded = LibraryEntryCodec.decode(v2raw)
+        assertEquals(
+            LibraryEntry("content://x", "nome.txt", SongFormat.TEXT, 200, customName = "Custom"),
+            decoded,
+        )
+        assertNull(decoded?.folderId)
+    }
+
+    @Test
+    fun `roundtrip combinando customName e folderId`() {
+        val entry = LibraryEntry(
+            uri = "content://y",
+            displayName = "IMG.jpg",
+            format = SongFormat.IMAGE,
+            sizeBytes = 2000,
+            customName = "Sweet Child",
+            folderId = "f-1",
         )
         assertEquals(entry, LibraryEntryCodec.decode(LibraryEntryCodec.encode(entry)))
     }

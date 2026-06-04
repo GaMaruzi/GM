@@ -41,6 +41,7 @@ class CifrasRepository(private val context: Context) {
                     format = SongFormat.TEXT,
                     sizeBytes = entry.sizeBytes,
                     sections = parsed.sections,
+                    folderId = entry.folderId,
                 )
             }
             SongFormat.IMAGE, SongFormat.PDF -> Song(
@@ -55,6 +56,7 @@ class CifrasRepository(private val context: Context) {
                 format = entry.format,
                 sizeBytes = entry.sizeBytes,
                 sections = emptyList(),
+                folderId = entry.folderId,
             )
         }
     }
