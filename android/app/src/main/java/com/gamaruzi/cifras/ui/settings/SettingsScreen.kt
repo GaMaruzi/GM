@@ -175,7 +175,7 @@ fun SettingsScreen(appState: AppState, onBack: () -> Unit) {
                 Linha(
                     Icons.Filled.Info,
                     "Versão",
-                    BuildConfig.VERSION_NAME + if (BuildConfig.DEBUG) " · debug" else "",
+                    BuildConfig.VERSION_NAME,
                 )
             }
 

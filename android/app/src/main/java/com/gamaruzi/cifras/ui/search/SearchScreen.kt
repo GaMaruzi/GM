@@ -19,17 +19,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
@@ -37,12 +39,16 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -52,10 +58,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +75,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gamaruzi.cifras.data.Song
 import com.gamaruzi.cifras.data.SongFormat
+import kotlinx.coroutines.launch
 
 enum class SearchTab { TODAS, FAVORITAS, RECENTES }
 
@@ -90,7 +99,7 @@ fun SearchScreen(
 ) {
     var query by remember { mutableStateOf("") }
     var tab by remember { mutableStateOf(SearchTab.TODAS) }
-    var menuExpanded by remember { mutableStateOf(false) }
+    var sheetAberta by remember { mutableStateOf(false) }
     var songParaRenomear by remember { mutableStateOf<Song?>(null) }
     var songParaExcluir by remember { mutableStateOf<Song?>(null) }
 
@@ -108,12 +117,19 @@ fun SearchScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
+            FloatingActionButton(
                 onClick = onStartStage,
-                icon = { Icon(Icons.Filled.Fullscreen, contentDescription = null) },
-                text = { Text("Modo palco") },
-            )
-        }
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ) {
+                Icon(
+                    Icons.Filled.PlayCircle,
+                    contentDescription = "Tocar no palco",
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+        },
+        floatingActionButtonPosition = FabPosition.Center,
     ) { padding ->
         Column(
             modifier = Modifier
@@ -128,34 +144,18 @@ fun SearchScreen(
                     placeholder = { Text("Buscar nas suas cifras", fontSize = 16.sp) },
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                     trailingIcon = {
-                        Box {
-                            if (query.isNotEmpty()) {
-                                IconButton(onClick = { query = "" }) {
-                                    Icon(Icons.Filled.Close, contentDescription = "Limpar")
-                                }
-                            } else {
-                                IconButton(onClick = { menuExpanded = true }) {
-                                    Icon(Icons.Filled.MoreVert, contentDescription = "Mais opções")
-                                }
+                        if (query.isNotEmpty()) {
+                            IconButton(onClick = { query = "" }) {
+                                Icon(Icons.Filled.Close, contentDescription = "Limpar")
                             }
-                            DropdownMenu(
-                                expanded = menuExpanded,
-                                onDismissRequest = { menuExpanded = false },
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Adicionar imagem") },
-                                    leadingIcon = { Icon(Icons.Filled.Image, contentDescription = null) },
-                                    onClick = { menuExpanded = false; onAddImages() },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Adicionar PDF/TXT") },
-                                    leadingIcon = { Icon(Icons.Filled.Description, contentDescription = null) },
-                                    onClick = { menuExpanded = false; onAddDocs() },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Configurações") },
-                                    onClick = { menuExpanded = false; onOpenSettings() },
-                                )
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { sheetAberta = true }) {
+                                    Icon(Icons.Filled.Add, contentDescription = "Adicionar cifras")
+                                }
+                                IconButton(onClick = onOpenSettings) {
+                                    Icon(Icons.Filled.Settings, contentDescription = "Configurações")
+                                }
                             }
                         }
                     },
@@ -254,6 +254,14 @@ fun SearchScreen(
                 }
             }
         }
+    }
+
+    if (sheetAberta) {
+        AdicionarBottomSheet(
+            onAddImages = { sheetAberta = false; onAddImages() },
+            onAddDocs = { sheetAberta = false; onAddDocs() },
+            onDismiss = { sheetAberta = false },
+        )
     }
 
     songParaRenomear?.let { song ->
@@ -444,6 +452,86 @@ private fun RenomearDialog(
             TextButton(onClick = onDismiss) { Text("Cancelar") }
         },
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AdicionarBottomSheet(
+    onAddImages: () -> Unit,
+    onAddDocs: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+
+    fun fechar(acao: () -> Unit) {
+        scope.launch { state.hide() }.invokeOnCompletion {
+            if (!state.isVisible) acao()
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = state,
+    ) {
+        Column(modifier = Modifier.padding(bottom = 24.dp)) {
+            Text(
+                "Adicionar à biblioteca",
+                fontSize = 16.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(start = 24.dp, top = 4.dp, bottom = 12.dp),
+            )
+            Surface(
+                onClick = { fechar(onAddImages) },
+                color = Color.Transparent,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                ListItem(
+                    leadingContent = {
+                        Icon(
+                            Icons.Filled.Image,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                    headlineContent = { Text("Imagem", fontSize = 16.sp) },
+                    supportingContent = {
+                        Text(
+                            "JPG, PNG, WebP",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                )
+            }
+            Surface(
+                onClick = { fechar(onAddDocs) },
+                color = Color.Transparent,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                ListItem(
+                    leadingContent = {
+                        Icon(
+                            Icons.Filled.Description,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                    headlineContent = { Text("PDF ou texto", fontSize = 16.sp) },
+                    supportingContent = {
+                        Text(
+                            "PDF, TXT",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                )
+            }
+        }
+    }
 }
 
 @Composable
