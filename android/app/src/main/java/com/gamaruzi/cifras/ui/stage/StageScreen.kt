@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -76,6 +77,7 @@ import com.gamaruzi.cifras.data.Line
 import com.gamaruzi.cifras.data.PdfPageRenderer
 import com.gamaruzi.cifras.data.Song
 import com.gamaruzi.cifras.data.SongFormat
+import com.gamaruzi.cifras.domain.Theory
 import com.gamaruzi.cifras.ui.common.findActivity
 import kotlin.math.abs
 import kotlinx.coroutines.delay
@@ -98,9 +100,9 @@ private const val SPEED_STEP = 10
 
 private const val CHROME_AUTO_HIDE_MS = 3200L
 
-// Dica de gestos no rodapé. Reduzida em v1.2.0 — antes era 5s no centro
-// e cobria a primeira música.
-private const val DICA_INICIAL_MS = 2200L
+// Dica de gestos. Posição no terço inferior da tela (não no rodapé puro)
+// e tempo confortável de leitura — antes 2.2s era curto demais.
+private const val DICA_INICIAL_MS = 4500L
 
 // Distância em pixels que o usuário precisa arrastar antes do gesto contar
 // como swipe deliberado (não confundir com micro-movimento de um tap).
@@ -119,10 +121,12 @@ data class StageDefaults(
 fun StageScreen(
     musicas: List<Song>,
     speeds: Map<String, Int>,
+    cifraSemis: Map<String, Int> = emptyMap(),
     repertoireDefaults: StageDefaults? = null,
     onBack: () -> Unit,
     onPersistRepertoireDefaults: (repId: String, textZoom: Int?, imageZoom: Float?, scrollSpeed: Int?) -> Unit = { _, _, _, _ -> },
     onSpeedChange: (songId: String, pxPerSec: Int) -> Unit = { _, _ -> },
+    onSemisChange: (songId: String, semis: Int) -> Unit = { _, _ -> },
 ) {
     SetupStageWindow()
 
@@ -133,10 +137,12 @@ fun StageScreen(
             StagePalco(
                 musicas = musicas,
                 speeds = speeds,
+                cifraSemis = cifraSemis,
                 repertoireDefaults = repertoireDefaults,
                 onBack = onBack,
                 onPersistRepertoireDefaults = onPersistRepertoireDefaults,
                 onSpeedChange = onSpeedChange,
+                onSemisChange = onSemisChange,
             )
         }
     }
@@ -146,10 +152,12 @@ fun StageScreen(
 private fun StagePalco(
     musicas: List<Song>,
     speeds: Map<String, Int>,
+    cifraSemis: Map<String, Int>,
     repertoireDefaults: StageDefaults?,
     onBack: () -> Unit,
     onPersistRepertoireDefaults: (repId: String, textZoom: Int?, imageZoom: Float?, scrollSpeed: Int?) -> Unit,
     onSpeedChange: (songId: String, pxPerSec: Int) -> Unit,
+    onSemisChange: (songId: String, semis: Int) -> Unit,
 ) {
     var indice by remember { mutableIntStateOf(0) }
     // Inicia com o default do repertório (ou FONT_DEFAULT pra cifra única).
@@ -165,6 +173,13 @@ private fun StagePalco(
     val songAtual = musicas[indice.coerceIn(0, musicas.size - 1)]
     val velocidade = speeds[songAtual.id] ?: repertoireDefaults?.scrollSpeed ?: 0
     val ehTexto = songAtual.format == SongFormat.TEXT
+    // Tom transposto: vem persistido por cifra (pré-definido na home).
+    // Mudanças no palco persistem.
+    val semis = cifraSemis[songAtual.id] ?: 0
+    val prefereFlat = remember(songAtual.id) { Theory.keyPrefersFlat(songAtual.key) }
+    val tomExibicao = remember(songAtual.key, semis, prefereFlat) {
+        Theory.transposeKey(songAtual.key, semis, prefereFlat)
+    }
 
     var chromeVisivel by remember { mutableStateOf(true) }
     var dicaVisivel by remember { mutableStateOf(true) }
@@ -221,7 +236,7 @@ private fun StagePalco(
         // libera o drag vertical pro gesto de mostrar chrome — o auto-scroll
         // programático segue funcionando normalmente.
         when (songAtual.format) {
-            SongFormat.TEXT -> StageText(songAtual, fontSize.sp, scrollState)
+            SongFormat.TEXT -> StageText(songAtual, fontSize.sp, semis, prefereFlat, scrollState)
             SongFormat.IMAGE -> StageImage(songAtual, scrollState, imageScale) { z ->
                 imageScale = z
                 if (repertoireDefaults != null) {
@@ -281,7 +296,21 @@ private fun StagePalco(
                     indice = indice + 1,
                     total = musicas.size,
                     velocidade = velocidade,
+                    tomExibicao = tomExibicao,
+                    semis = semis,
                     onBack = onBack,
+                    onTomMinus = {
+                        chromeVisivel = true
+                        onSemisChange(songAtual.id, semis - 1)
+                    },
+                    onTomPlus = {
+                        chromeVisivel = true
+                        onSemisChange(songAtual.id, semis + 1)
+                    },
+                    onTomReset = {
+                        chromeVisivel = true
+                        onSemisChange(songAtual.id, 0)
+                    },
                 )
                 StageBottomBar(
                     indice = indice,
@@ -344,15 +373,16 @@ private fun StagePalco(
             }
         }
 
-        // Overlay de dica inicial, agora no rodapé, em fonte pequena, pra não
-        // cobrir a primeira música. Some sozinho após DICA_INICIAL_MS.
+        // Overlay de dica inicial, posicionado no terço inferior da tela
+        // (não no rodapé puro): visível sem competir com a primeira música.
+        val telaH = LocalConfiguration.current.screenHeightDp.dp
         AnimatedVisibility(
             visible = dicaVisivel,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 36.dp),
+                .align(Alignment.TopCenter)
+                .padding(top = telaH * 2f / 3f),
         ) {
             DicaInicial(onDismiss = { dicaVisivel = false })
         }
@@ -392,41 +422,86 @@ private fun StageTopBar(
     indice: Int,
     total: Int,
     velocidade: Int,
+    tomExibicao: String,
+    semis: Int,
     onBack: () -> Unit,
+    onTomMinus: () -> Unit,
+    onTomPlus: () -> Unit,
+    onTomReset: () -> Unit,
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(StageBg.copy(alpha = 0.85f))
-            .padding(start = 8.dp, end = 16.dp, top = 36.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(start = 8.dp, end = 16.dp, top = 36.dp, bottom = 10.dp),
     ) {
-        IconButton(onClick = onBack) {
-            Icon(Icons.Filled.Close, contentDescription = "Sair do palco", tint = StageFg)
-        }
-        Spacer(Modifier.size(4.dp))
-        Column(modifier = Modifier.weight(1f)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Filled.Close, contentDescription = "Sair do palco", tint = StageFg)
+            }
+            Spacer(Modifier.size(4.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    song.title,
+                    color = StageFg,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+                Text(
+                    if (velocidade > 0) "${song.artist} · ${velocidade}px/s"
+                    else song.artist,
+                    color = StageFgDim,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                )
+            }
             Text(
-                song.title,
-                color = StageFg,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
+                "$indice / $total",
+                color = StageFgDim,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
             )
+        }
+        // Controle de tom: aparece sempre, com botão de reset visível só
+        // quando semis != 0 (slot fixo pra não mexer no layout).
+        Row(
+            modifier = Modifier.padding(start = 8.dp, top = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
-                if (velocidade > 0) "${song.artist} · ${velocidade}px/s"
-                else song.artist,
+                "Tom",
                 color = StageFgDim,
                 fontSize = 11.sp,
-                maxLines = 1,
+                modifier = Modifier.padding(end = 8.dp),
             )
+            StageActionButton(label = "−", enabled = true, onClick = onTomMinus)
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 6.dp)
+                    .width(36.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    tomExibicao,
+                    color = StageAccent,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+            StageActionButton(label = "+", enabled = true, onClick = onTomPlus)
+            Box(
+                modifier = Modifier
+                    .padding(start = 6.dp)
+                    .size(40.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (semis != 0) {
+                    StageActionButton(label = "↺", enabled = true, onClick = onTomReset)
+                }
+            }
         }
-        Text(
-            "$indice / $total",
-            color = StageFgDim,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-        )
     }
 }
 
@@ -552,32 +627,55 @@ private fun StageActionButton(label: String, enabled: Boolean, onClick: () -> Un
 private fun DicaInicial(onDismiss: () -> Unit) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(StageBg.copy(alpha = 0.8f))
+            .clip(RoundedCornerShape(16.dp))
+            .background(StageBg.copy(alpha = 0.88f))
             .clickable(onClick = onDismiss)
-            .padding(horizontal = 18.dp, vertical = 10.dp),
+            .padding(horizontal = 22.dp, vertical = 16.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(horizontalAlignment = Alignment.Start) {
             Text(
-                "Toque → próxima · Arraste pra direita → anterior",
+                "Toque na tela → próxima música",
                 color = StageFg,
-                fontSize = 12.sp,
-                textAlign = TextAlign.Center,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Start,
             )
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
-                "Arraste pra cima/baixo → controles",
+                "Arraste pra direita → música anterior",
+                color = StageFg,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Start,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Arraste pra cima ou baixo → menu",
+                color = StageFg,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Start,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Toque aqui pra fechar",
                 color = StageFgDim,
                 fontSize = 11.sp,
-                textAlign = TextAlign.Center,
+                textAlign = TextAlign.Start,
             )
         }
     }
 }
 
 @Composable
-private fun StageText(song: Song, fontSize: TextUnit, scrollState: ScrollState) {
+private fun StageText(
+    song: Song,
+    fontSize: TextUnit,
+    semis: Int,
+    prefereFlat: Boolean,
+    scrollState: ScrollState,
+) {
     // userScrollEnabled = false libera o drag vertical pra mostrar chrome.
     // O auto-scroll programático segue funcionando porque escreve direto no
     // scrollState.
@@ -599,7 +697,13 @@ private fun StageText(song: Song, fontSize: TextUnit, scrollState: ScrollState) 
                 )
                 Spacer(Modifier.height(8.dp))
             }
-            section.lines.forEach { line -> StageLine(line, fontSize) }
+            section.lines.forEach { line ->
+                // Transpõe inline. Quando semis=0 (caso comum), retorna a
+                // string original sem alocar — sem custo.
+                val linhaRender = if (semis == 0 || line.chords.isBlank()) line
+                else line.copy(chords = Theory.transposeChordLine(line.chords, semis, prefereFlat))
+                StageLine(linhaRender, fontSize)
+            }
         }
     }
 }

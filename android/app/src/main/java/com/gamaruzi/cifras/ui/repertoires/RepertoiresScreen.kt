@@ -76,7 +76,8 @@ import com.gamaruzi.cifras.ui.common.entityColorByKey
 private enum class RepSort(val label: String) {
     ALFABETICA_ASC("A → Z"),
     ALFABETICA_DESC("Z → A"),
-    QUANTIDADE_DESC("Mais cifras");
+    QUANTIDADE_DESC("Maior repertório"),
+    QUANTIDADE_ASC("Menor repertório");
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -98,6 +99,9 @@ fun RepertoiresScreen(
             RepSort.ALFABETICA_DESC -> repertoires.sortedByDescending { it.name.lowercase() }
             RepSort.QUANTIDADE_DESC -> repertoires.sortedWith(
                 compareByDescending<Repertoire> { it.songIds.size }.thenBy { it.name.lowercase() }
+            )
+            RepSort.QUANTIDADE_ASC -> repertoires.sortedWith(
+                compareBy<Repertoire> { it.songIds.size }.thenBy { it.name.lowercase() }
             )
         }
     }

@@ -106,7 +106,9 @@ fun DetailScreen(
     isFavorite: Boolean,
     folders: List<Folder>,
     initialScrollOffset: Int,
+    initialSemis: Int,
     onScrollPersist: (Int) -> Unit,
+    onSemisChange: (Int) -> Unit,
     onBack: () -> Unit,
     onToggleFavorite: () -> Unit,
     onRename: (String, String) -> Unit,
@@ -120,9 +122,11 @@ fun DetailScreen(
     var dialogMover by remember { mutableStateOf(false) }
     var dialogExcluir by remember { mutableStateOf(false) }
     var fontSize by remember { mutableIntStateOf(16) }
-    // Reseta a transposição quando troca de música — caso contrário um +3
-    // grudado da música anterior se aplicaria à nova sem o usuário saber.
-    var semis by remember(song.id) { mutableIntStateOf(0) }
+    // Tom pré-definido vem do estado salvo da cifra. Mudanças aqui são
+    // persistidas via onSemisChange (debounce não necessário — stepper só
+    // dispara um evento por clique).
+    var semis by remember(song.id, initialSemis) { mutableIntStateOf(initialSemis) }
+    LaunchedEffect(semis) { onSemisChange(semis) }
     val controlesAtivos = song.format == SongFormat.TEXT
 
     // Tom de exibição: já transposto. Preferência por bemóis segue a

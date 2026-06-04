@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
@@ -118,42 +117,6 @@ fun RepertoireEditorScreen(
                 },
             )
         },
-        bottomBar = {
-            // Barra com dois botões retangulares lado a lado, similar aos
-            // CTAs da EmptyScreen. "Ir ao palco" só aparece quando há cifras
-            // — sem play em estado vazio.
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    OutlinedButton(
-                        onClick = onAddSongs,
-                        modifier = Modifier.weight(1f).heightIn(min = 52.dp),
-                    ) {
-                        Icon(Icons.Filled.Add, contentDescription = null)
-                        Spacer(Modifier.size(8.dp))
-                        Text("Adicionar cifras")
-                    }
-                    if (rep.songIds.isNotEmpty()) {
-                        Button(
-                            onClick = onStartStage,
-                            modifier = Modifier.weight(1f).heightIn(min = 52.dp),
-                        ) {
-                            Icon(Icons.Filled.Mic, contentDescription = null)
-                            Spacer(Modifier.size(8.dp))
-                            Text("Ir ao palco")
-                        }
-                    }
-                }
-            }
-        },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             if (itensRep.isEmpty()) {
@@ -206,6 +169,42 @@ fun RepertoireEditorScreen(
                                 appState.setSpeed(song.id, nova)
                             },
                         )
+                    }
+                }
+
+                // Botões inline no fim do conteúdo, mais perto do dedo (já não
+                // grudados na borda como FAB/bottomBar). Tamanho compacto,
+                // cantos pouco arredondados (12dp) — visual coerente com a
+                // tela "Repertórios" anterior.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedButton(
+                        onClick = onAddSongs,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null,
+                            modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.size(6.dp))
+                        Text("Adicionar cifras", fontSize = 14.sp)
+                    }
+                    Button(
+                        onClick = onStartStage,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.MenuBook,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.size(6.dp))
+                        Text("Ir ao palco", fontSize = 14.sp)
                     }
                 }
             }

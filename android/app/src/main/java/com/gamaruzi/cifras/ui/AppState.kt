@@ -67,6 +67,9 @@ class AppState(application: Application) : AndroidViewModel(application) {
     val speeds: StateFlow<Map<String, Int>> = prefs.speeds
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
+    val cifraSemis: StateFlow<Map<String, Int>> = prefs.cifraSemis
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
     val folders: StateFlow<List<Folder>> = prefs.folders
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -262,6 +265,10 @@ class AppState(application: Application) : AndroidViewModel(application) {
 
     fun setSpeed(songId: String, pxPerSecond: Int) {
         viewModelScope.launch { prefs.setSpeed(songId, pxPerSecond) }
+    }
+
+    fun setCifraSemis(songId: String, semis: Int) {
+        viewModelScope.launch { prefs.setCifraSemis(songId, semis) }
     }
 
     fun createFolder(name: String, color: String = "green") {

@@ -31,6 +31,10 @@ class UserPreferences(private val context: Context) {
     private val keySetlistMigrated = booleanPreferencesKey("setlist_v1_migrated")
     // Ordenação por aba (Todas/Favoritas/Recentes). Codec: "TAB=MODE;TAB=MODE".
     private val keySortModes = stringPreferencesKey("sort_modes_v1")
+    // Transposição (em semitons) salva por cifra. Reusa ScrollCodec porque
+    // a estrutura é Map<URI, Int>. Valores negativos descem o tom; 0 ou
+    // ausente = tom original.
+    private val keyCifraSemis = stringPreferencesKey("cifra_semis_v1")
 
     val library: Flow<List<LibraryEntry>> = context.dataStore.data.map { prefs ->
         prefs[keyLibrary]
@@ -65,6 +69,11 @@ class UserPreferences(private val context: Context) {
     // é idêntica (Map<URI, Int>).
     val speeds: Flow<Map<String, Int>> = context.dataStore.data.map { prefs ->
         ScrollCodec.decode(prefs[keySpeeds].orEmpty())
+    }
+
+    // Transposição por cifra. Valores em semitons (-11..+11 em uso típico).
+    val cifraSemis: Flow<Map<String, Int>> = context.dataStore.data.map { prefs ->
+        ScrollCodec.decode(prefs[keyCifraSemis].orEmpty())
     }
 
     // Pastas criadas pelo usuário. Ordenadas pelo nome em lowercase para a UI
@@ -143,6 +152,7 @@ class UserPreferences(private val context: Context) {
             prefs.remove(keyRepertoires)
             prefs.remove(keySetlistMigrated)
             prefs.remove(keySortModes)
+            prefs.remove(keyCifraSemis)
         }
     }
 
@@ -365,6 +375,14 @@ class UserPreferences(private val context: Context) {
             val mapa = ScrollCodec.decode(prefs[keySpeeds].orEmpty()).toMutableMap()
             if (pxPerSecond <= 0) mapa.remove(songId) else mapa[songId] = pxPerSecond
             prefs[keySpeeds] = ScrollCodec.encode(mapa)
+        }
+    }
+
+    suspend fun setCifraSemis(songId: String, semis: Int) {
+        context.dataStore.edit { prefs ->
+            val mapa = ScrollCodec.decode(prefs[keyCifraSemis].orEmpty()).toMutableMap()
+            if (semis == 0) mapa.remove(songId) else mapa[songId] = semis
+            prefs[keyCifraSemis] = ScrollCodec.encode(mapa)
         }
     }
 

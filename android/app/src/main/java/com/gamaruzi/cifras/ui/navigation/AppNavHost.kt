@@ -62,6 +62,7 @@ fun AppNavHost(appState: AppState = viewModel()) {
     val folders by appState.folders.collectAsStateWithLifecycle()
     val sortModes by appState.sortModes.collectAsStateWithLifecycle()
     val scrollOffsets by appState.scrollOffsets.collectAsStateWithLifecycle()
+    val cifraSemis by appState.cifraSemis.collectAsStateWithLifecycle()
     val lastAddResult by appState.lastAddResult.collectAsStateWithLifecycle()
 
     // Photo Picker do sistema (API agnóstica a versão do Android; Google fornece
@@ -176,7 +177,9 @@ fun AppNavHost(appState: AppState = viewModel()) {
                     isFavorite = song.id in favorites,
                     folders = folders,
                     initialScrollOffset = scrollOffsets[song.id] ?: 0,
+                    initialSemis = cifraSemis[song.id] ?: 0,
                     onScrollPersist = { offset -> appState.saveScrollOffset(song.id, offset) },
+                    onSemisChange = { s -> appState.setCifraSemis(song.id, s) },
                     onBack = { navController.popBackStack() },
                     onToggleFavorite = { appState.toggleFavorite(song.id) },
                     onRename = { nome, artista ->
@@ -267,15 +270,18 @@ fun AppNavHost(appState: AppState = viewModel()) {
                 )
             }
             val speeds by appState.speeds.collectAsStateWithLifecycle()
+            val semisAll by appState.cifraSemis.collectAsStateWithLifecycle()
             StageScreen(
                 musicas = musicas,
                 speeds = speeds,
+                cifraSemis = semisAll,
                 repertoireDefaults = defaults,
                 onBack = { navController.popBackStack() },
                 onPersistRepertoireDefaults = { rid, tx, img, sp ->
                     appState.setRepertoireDefaults(rid, tx, img, sp)
                 },
                 onSpeedChange = { songId, px -> appState.setSpeed(songId, px) },
+                onSemisChange = { songId, s -> appState.setCifraSemis(songId, s) },
             )
         }
 
