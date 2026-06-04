@@ -34,7 +34,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Festival
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Refresh
@@ -78,6 +77,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
@@ -89,6 +89,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.gamaruzi.cifras.R
 import com.gamaruzi.cifras.data.Folder
 import com.gamaruzi.cifras.data.Line
 import com.gamaruzi.cifras.data.PdfPageRenderer
@@ -99,6 +100,10 @@ import com.gamaruzi.cifras.domain.Theory
 import com.gamaruzi.cifras.ui.common.entityColorByKey
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
+
+// Limites do renomear cifra: cobrem 90% dos casos sem truncar listagens.
+private const val NOME_MAX_CHARS = 40
+private const val ARTISTA_MAX_CHARS = 30
 
 @OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
@@ -336,7 +341,7 @@ fun DetailScreen(
                 .padding(bottom = 24.dp),
         ) {
             Icon(
-                Icons.Filled.Festival,
+                painter = painterResource(R.drawable.ic_festival),
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
             )
@@ -441,11 +446,22 @@ private fun RenomearSongDialog(
         title = { Text("Renomear cifra") },
         text = {
             Column {
+                Text(
+                    "O nome da música e o artista serão exibidos na biblioteca.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = nome,
-                    onValueChange = { nome = it },
+                    onValueChange = {
+                        if (it.text.length <= NOME_MAX_CHARS) nome = it
+                    },
                     label = { Text("Nome da música") },
                     singleLine = true,
+                    supportingText = {
+                        Text("${nome.text.length}/$NOME_MAX_CHARS")
+                    },
                     trailingIcon = if (sufixoExt.isNotEmpty()) {
                         {
                             Text(
@@ -460,18 +476,23 @@ private fun RenomearSongDialog(
                         .fillMaxWidth()
                         .focusRequester(focusRequester),
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(4.dp))
                 OutlinedTextField(
                     value = artista,
-                    onValueChange = { artista = it },
+                    onValueChange = {
+                        if (it.text.length <= ARTISTA_MAX_CHARS) artista = it
+                    },
                     label = { Text("Artista (opcional)") },
                     singleLine = true,
+                    supportingText = {
+                        Text("${artista.text.length}/$ARTISTA_MAX_CHARS")
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Dica: o nome aparece em destaque e o artista numa linha menor. " +
-                        "O arquivo original não é alterado.",
+                    "Dica: o nome da música e o artista ficarão em destaque. " +
+                        "O arquivo original não será alterado.",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

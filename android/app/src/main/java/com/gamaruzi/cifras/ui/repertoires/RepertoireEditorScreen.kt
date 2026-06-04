@@ -21,7 +21,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.Festival
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
@@ -54,11 +53,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gamaruzi.cifras.R
 import com.gamaruzi.cifras.data.Song
 import com.gamaruzi.cifras.data.SongFormat
 import com.gamaruzi.cifras.domain.Theory
@@ -254,7 +255,7 @@ fun RepertoireEditorScreen(
                         modifier = Modifier.weight(1f),
                     ) {
                         Icon(
-                            Icons.Filled.Festival,
+                            painter = painterResource(R.drawable.ic_festival),
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
                         )

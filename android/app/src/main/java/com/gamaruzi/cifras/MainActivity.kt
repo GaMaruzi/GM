@@ -6,7 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -43,11 +43,14 @@ import com.gamaruzi.cifras.ui.theme.CifrasTheme
 import kotlinx.coroutines.delay
 
 // Tempo total mínimo da splash. A janela nativa exibe o logo + fundo verde
-// desde o primeiro frame; o overlay Compose entra instantâneo por cima
-// pra adicionar o slogan. Só a saída (fadeOut) é animada — a entrada não
-// pode ter delay senão o usuário percebe o slogan "aparecendo no fim".
+// desde o primeiro frame; o overlay Compose monta por baixo com logo+slogan
+// e a nativa some revelando-o. OVERLAY_MIN_VISIBLE_MS garante tempo mínimo
+// de slogan visível mesmo em cold start lento onde elapsed > SPLASH_TOTAL_MS
+// quando o Compose finalmente roda — sem ele, o slogan sairia imediatamente.
 private const val SPLASH_TOTAL_MS = 1600L
-private const val OVERLAY_FADE_OUT_MS = 320
+private const val OVERLAY_MIN_VISIBLE_MS = 900L
+private const val OVERLAY_FADE_IN_MS = 180
+private const val OVERLAY_FADE_OUT_MS = 400
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -77,8 +80,12 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(Unit) {
                 val elapsed = SystemClock.uptimeMillis() - processStart
-                val restante = (SPLASH_TOTAL_MS - elapsed).coerceAtLeast(0L)
-                if (restante > 0) delay(restante)
+                // coerceAtLeast(OVERLAY_MIN_VISIBLE_MS): mesmo em cold start
+                // onde elapsed já passou de SPLASH_TOTAL_MS, mantemos o
+                // overlay por pelo menos OVERLAY_MIN_VISIBLE_MS pra garantir
+                // logo+slogan visíveis juntos.
+                val restante = (SPLASH_TOTAL_MS - elapsed).coerceAtLeast(OVERLAY_MIN_VISIBLE_MS)
+                delay(restante)
                 keepSplash = false
                 showOverlay = false
             }
@@ -88,13 +95,12 @@ class MainActivity : ComponentActivity() {
                     AppNavHost(appState = appState)
                     AnimatedVisibility(
                         visible = showOverlay,
-                        // Entrada instantânea: o logo já está visível na
-                        // splash nativa (windowSplashScreenAnimatedIcon)
-                        // desde o primeiro frame; o overlay Compose só
-                        // *adiciona* o slogan. Sem fadeIn, o usuário não
-                        // percebe troca de camada — só vê o slogan
-                        // estabilizar junto com o logo.
-                        enter = EnterTransition.None,
+                        // fadeIn curto (180ms): como o logo da nativa e o do
+                        // overlay estão na mesma posição/cor, o fade só faz
+                        // o slogan surgir suavemente junto do logo. Sem isso,
+                        // o slogan aparece "saltando" no momento em que a
+                        // splash nativa sai.
+                        enter = fadeIn(animationSpec = tween(durationMillis = OVERLAY_FADE_IN_MS)),
                         exit = fadeOut(animationSpec = tween(durationMillis = OVERLAY_FADE_OUT_MS)),
                     ) {
                         SplashOverlay()

@@ -10,7 +10,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -22,8 +21,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.colorResource
-import androidx.compose.material.icons.filled.Festival
-import androidx.compose.foundation.clickable
+import androidx.compose.ui.res.painterResource
 import com.gamaruzi.cifras.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -432,18 +430,42 @@ private fun StagePalco(
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize(),
         ) {
-            ShowAcabouOverlay(onClose = onShowEnded)
+            ShowAcabouOverlay(
+                onClose = onShowEnded,
+                onVoltarUltima = { showAcabou = false },
+            )
         }
     }
 }
 
 @Composable
-private fun ShowAcabouOverlay(onClose: () -> Unit) {
+private fun ShowAcabouOverlay(
+    onClose: () -> Unit,
+    onVoltarUltima: () -> Unit,
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(colorResource(id = R.color.splash_background))
-            .clickable(onClick = onClose),
+            // Tap fecha pra Repertórios; swipe horizontal pra direita volta
+            // pra última música (desfaz o "fim do show"). Mesmo padrão dos
+            // gestos do palco (linhas ~310-326). pointerInput separado pra
+            // tap e drag — combiná-los num só consome eventos errado.
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { onClose() })
+            }
+            .pointerInput(Unit) {
+                var totalX = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { totalX = 0f },
+                    onDragEnd = {
+                        if (totalX > SWIPE_THRESHOLD_PX) onVoltarUltima()
+                        totalX = 0f
+                    },
+                    onDragCancel = { totalX = 0f },
+                    onHorizontalDrag = { _, dx -> totalX += dx },
+                )
+            },
     ) {
         IconButton(
             onClick = onClose,
@@ -462,14 +484,14 @@ private fun ShowAcabouOverlay(onClose: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
-                Icons.Filled.Festival,
+                painter = painterResource(R.drawable.ic_festival),
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(72.dp),
             )
             Spacer(Modifier.height(20.dp))
             Text(
-                "Show acabou!",
+                "O show acabou!",
                 color = Color.White,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
