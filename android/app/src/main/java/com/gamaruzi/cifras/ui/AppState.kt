@@ -15,11 +15,15 @@ import com.gamaruzi.cifras.data.Song
 import com.gamaruzi.cifras.data.SongFormat
 import com.gamaruzi.cifras.data.SongFormatDetector
 import com.gamaruzi.cifras.data.UserPreferences
+import com.gamaruzi.cifras.ui.search.SearchTab
+import com.gamaruzi.cifras.ui.search.SortMode
+import com.gamaruzi.cifras.ui.search.SortModeCodec
 import com.gamaruzi.cifras.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -68,6 +72,10 @@ class AppState(application: Application) : AndroidViewModel(application) {
 
     val repertoires: StateFlow<List<Repertoire>> = prefs.repertoires
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val sortModes: StateFlow<Map<SearchTab, SortMode>> = prefs.sortModesRaw
+        .map(SortModeCodec::decode)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     private val _lastAddResult = MutableStateFlow<AddResult?>(null)
     val lastAddResult: StateFlow<AddResult?> = _lastAddResult.asStateFlow()
@@ -232,13 +240,14 @@ class AppState(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { prefs.setSpeed(songId, pxPerSecond) }
     }
 
-    fun createFolder(name: String) {
+    fun createFolder(name: String, color: String = "green") {
         if (name.isBlank()) return
-        viewModelScope.launch { prefs.addFolder(name) }
+        viewModelScope.launch { prefs.addFolder(name, color) }
     }
 
-    fun renameFolder(id: String, novoNome: String) {
-        viewModelScope.launch { prefs.renameFolder(id, novoNome) }
+    // Renomeia e/ou troca a cor da pasta. color = null mantém a cor atual.
+    fun renameFolder(id: String, novoNome: String, color: String? = null) {
+        viewModelScope.launch { prefs.renameFolder(id, novoNome, color) }
     }
 
     fun deleteFolder(id: String) {
@@ -247,6 +256,14 @@ class AppState(application: Application) : AndroidViewModel(application) {
 
     fun moveToFolder(uri: String, folderId: String?) {
         viewModelScope.launch { prefs.moveToFolder(uri, folderId) }
+    }
+
+    fun setSortMode(tab: SearchTab, mode: SortMode) {
+        viewModelScope.launch {
+            val atual = sortModes.value.toMutableMap()
+            atual[tab] = mode
+            prefs.setSortModesRaw(SortModeCodec.encode(atual))
+        }
     }
 
     fun song(id: String): Song? = _songs.value.find { it.id == id }

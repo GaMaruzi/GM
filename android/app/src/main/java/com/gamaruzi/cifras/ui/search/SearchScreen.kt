@@ -1,6 +1,8 @@
 package com.gamaruzi.cifras.ui.search
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreateNewFolder
@@ -36,6 +39,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
@@ -87,6 +91,9 @@ import androidx.compose.ui.unit.sp
 import com.gamaruzi.cifras.data.Folder
 import com.gamaruzi.cifras.data.Song
 import com.gamaruzi.cifras.data.SongFormat
+import com.gamaruzi.cifras.ui.common.DEFAULT_ENTITY_COLOR_KEY
+import com.gamaruzi.cifras.ui.common.EntityColorPalette
+import com.gamaruzi.cifras.ui.common.entityColorByKey
 import kotlinx.coroutines.launch
 
 enum class SearchTab { TODAS, FAVORITAS, RECENTES }
@@ -100,6 +107,7 @@ fun SearchScreen(
     favorites: Set<String>,
     recents: List<String>,
     folders: List<Folder>,
+    sortModes: Map<SearchTab, SortMode>,
     snackbarHostState: SnackbarHostState,
     onOpenSong: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
@@ -108,10 +116,11 @@ fun SearchScreen(
     onAddDocs: () -> Unit,
     onRename: (String, String) -> Unit,
     onDelete: (String) -> Unit,
-    onCreateFolder: (String) -> Unit,
-    onRenameFolder: (String, String) -> Unit,
+    onCreateFolder: (String, String) -> Unit,
+    onRenameFolder: (String, String, String?) -> Unit,
     onDeleteFolder: (String) -> Unit,
     onMoveToFolder: (String, String?) -> Unit,
+    onSortModeChange: (SearchTab, SortMode) -> Unit,
     onStartStage: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
@@ -132,24 +141,47 @@ fun SearchScreen(
     }
 
     val buscando = query.trim().isNotEmpty()
+    val sortAtual = SortModeCodec.forTab(sortModes, tab)
 
-    val resultados = remember(songs, favorites, recents, query, tab, pastaAtualId, buscando) {
-        // Pasta escopa a navegação só quando não estamos buscando — busca é global.
-        val noEscopo = if (buscando) songs else songs.filter { it.folderId == pastaAtualId }
+    val resultados = remember(songs, favorites, recents, query, tab, pastaAtualId, buscando, sortAtual) {
+        // Escopo da listagem por aba:
+        // - TODAS: dentro da pasta atual (ou raiz = sem pasta).
+        // - FAVORITAS/RECENTES: na raiz, globais (inclusive cifras dentro
+        //   de pastas) — caso contrário um favorito dentro de pasta sumiria
+        //   sem o usuário entender por quê. Dentro de uma pasta, restringe
+        //   ao escopo da pasta.
+        // Busca textual ignora pasta — é global.
+        val noEscopo = when {
+            buscando -> songs
+            tab == SearchTab.TODAS -> songs.filter { it.folderId == pastaAtualId }
+            pastaAtualId != null -> songs.filter { it.folderId == pastaAtualId }
+            else -> songs
+        }
         val base = when (tab) {
             SearchTab.TODAS -> noEscopo
             SearchTab.FAVORITAS -> noEscopo.filter { it.id in favorites }
             SearchTab.RECENTES -> recents.mapNotNull { id -> noEscopo.find { it.id == id } }
         }
         val q = query.trim().lowercase()
-        if (q.isEmpty()) base
+        val filtrados = if (q.isEmpty()) base
         else base.filter { (it.file + " " + it.genre).lowercase().contains(q) }
+
+        // RECENTES preserva ordem de recência; demais aplicam o sort.
+        if (tab == SearchTab.RECENTES) {
+            filtrados
+        } else {
+            sortSongs(filtrados, sortAtual)
+        }
     }
 
     // Subpastas a mostrar no topo da lista quando estamos na raiz, sem busca e tab=TODAS.
-    val mostrarPastas = !buscando && pastaAtualId == null && tab == SearchTab.TODAS
     val cifrasPorPasta = remember(songs) { songs.groupBy { it.folderId }.mapValues { it.value.size } }
     val pastasMap = remember(folders) { folders.associateBy { it.id } }
+    val mostrarPastas = !buscando && pastaAtualId == null && tab == SearchTab.TODAS
+    val pastasOrdenadas = remember(folders, cifrasPorPasta, sortAtual, mostrarPastas) {
+        if (!mostrarPastas) emptyList()
+        else sortFolders(folders, cifrasPorPasta, sortAtual)
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -219,6 +251,7 @@ fun SearchScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (pastaAtual != null) {
+                    val corPasta = entityColorByKey(pastaAtual.color).container
                     IconButton(
                         onClick = { pastaAtualId = null },
                         modifier = Modifier.size(32.dp),
@@ -234,7 +267,7 @@ fun SearchScreen(
                     Icon(
                         Icons.Filled.Folder,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = corPasta,
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(Modifier.size(7.dp))
@@ -278,7 +311,7 @@ fun SearchScreen(
             Row(
                 modifier = Modifier
                     .horizontalScroll(rememberScrollState())
-                    .padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Chip("Todas", tab == SearchTab.TODAS) { tab = SearchTab.TODAS }
@@ -290,11 +323,26 @@ fun SearchScreen(
                 }
             }
 
+            // Controle de ordenação (some na aba RECENTES: ordem é por recência).
+            if (tab != SearchTab.RECENTES) {
+                Box(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
+                    SortDropdown(
+                        atual = sortAtual,
+                        // Em FAVORITAS lista plana de cifras: esconde a opção
+                        // "Mais cifras" que só faz sentido pra pastas.
+                        permitirQuantidade = tab == SearchTab.TODAS && pastaAtualId == null,
+                        onSelect = { onSortModeChange(tab, it) },
+                    )
+                }
+            }
+
+            val mostrarEmpty = resultados.isEmpty() && pastasOrdenadas.isEmpty()
+
             if (loading && songs.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
-            } else if (resultados.isEmpty()) {
+            } else if (mostrarEmpty) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                     Column(
                         modifier = Modifier.padding(top = 56.dp, start = 40.dp, end = 40.dp),
@@ -311,6 +359,7 @@ fun SearchScreen(
                             text = when {
                                 query.isNotEmpty() -> "Nada encontrado para \"$query\"."
                                 tab == SearchTab.FAVORITAS -> "Nenhuma favorita ainda. Toque na ★ de uma cifra."
+                                tab == SearchTab.RECENTES -> "Nenhuma cifra recente ainda."
                                 songs.isEmpty() -> "Biblioteca vazia. Use o menu para adicionar cifras."
                                 else -> "Nada por aqui ainda."
                             },
@@ -322,8 +371,8 @@ fun SearchScreen(
                 }
             } else {
                 LazyColumn(contentPadding = PaddingValues(bottom = 96.dp)) {
-                    if (mostrarPastas && folders.isNotEmpty()) {
-                        items(folders, key = { "folder-" + it.id }) { folder ->
+                    if (pastasOrdenadas.isNotEmpty()) {
+                        items(pastasOrdenadas, key = { "folder-" + it.id }) { folder ->
                             PastaItem(
                                 folder = folder,
                                 contagem = cifrasPorPasta[folder.id] ?: 0,
@@ -335,12 +384,18 @@ fun SearchScreen(
                     }
                     items(resultados, key = { it.id }) { song ->
                         val pastaDaSong = song.folderId?.let { pastasMap[it] }
+                        // Mostra chip de pasta quando o escopo não é "dentro
+                        // dela": busca global, ou Favoritas/Recentes na raiz
+                        // mostrando cifras de várias pastas.
+                        val mostrarChipPasta = pastaDaSong != null && when {
+                            buscando -> true
+                            pastaAtualId == null && tab != SearchTab.TODAS -> true
+                            else -> false
+                        }
                         SongItem(
                             song = song,
                             isFavorite = song.id in favorites,
-                            // Mostra chip de pasta quando estamos buscando (escopo global)
-                            // e a cifra mora em alguma pasta — orienta o usuário.
-                            pastaInfo = if (buscando) pastaDaSong else null,
+                            pastaInfo = if (mostrarChipPasta) pastaDaSong else null,
                             onClick = { onOpenSong(song.id) },
                             onToggleFav = { onToggleFavorite(song.id) },
                             onRename = { songParaRenomear = song },
@@ -363,21 +418,28 @@ fun SearchScreen(
     }
 
     if (dialogNovaPasta) {
-        NovaPastaDialog(
+        PastaDialog(
+            titulo = "Nova pasta",
+            nomeInicial = "",
+            corInicial = DEFAULT_ENTITY_COLOR_KEY,
+            confirmLabel = "Criar",
             onDismiss = { dialogNovaPasta = false },
-            onConfirm = { nome ->
-                onCreateFolder(nome)
+            onConfirm = { nome, cor ->
+                onCreateFolder(nome, cor)
                 dialogNovaPasta = false
             },
         )
     }
 
     pastaParaRenomear?.let { folder ->
-        RenomearPastaDialog(
-            nomeAtual = folder.name,
+        PastaDialog(
+            titulo = "Renomear pasta",
+            nomeInicial = folder.name,
+            corInicial = folder.color,
+            confirmLabel = "Salvar",
             onDismiss = { pastaParaRenomear = null },
-            onConfirm = { novoNome ->
-                onRenameFolder(folder.id, novoNome)
+            onConfirm = { novoNome, novaCor ->
+                onRenameFolder(folder.id, novoNome, novaCor)
                 pastaParaRenomear = null
             },
         )
@@ -413,16 +475,16 @@ fun SearchScreen(
     }
 
     songParaRenomear?.let { song ->
-        // O stem corrente é o nomeExibicao sem extensão. Quando há artista
-        // identificado, reconstrói "Título - Artista" pro usuário enxergar
-        // tudo que pode editar.
-        val stemAtual = if (song.artist == "—") song.title else "${song.title} - ${song.artist}"
+        // Reconstrói "Título" e "Artista" pra editar separadamente.
+        val nomeInicial = song.title
+        val artistaInicial = if (song.artist == "—") "" else song.artist
         RenomearDialog(
-            stemAtual = stemAtual,
+            nomeInicial = nomeInicial,
+            artistaInicial = artistaInicial,
             extensao = song.ext,
             onDismiss = { songParaRenomear = null },
-            onConfirm = { novoStem ->
-                onRename(song.id, novoStem)
+            onConfirm = { nome, artista ->
+                onRename(song.id, juntarNomeEArtista(nome, artista))
                 songParaRenomear = null
             },
         )
@@ -438,6 +500,34 @@ fun SearchScreen(
             },
         )
     }
+}
+
+// Aplica o SortMode em uma lista de pastas considerando a contagem de cifras.
+internal fun sortFolders(
+    folders: List<Folder>,
+    cifrasPorPasta: Map<String?, Int>,
+    sort: SortMode,
+): List<Folder> = when (sort) {
+    SortMode.ALFABETICA_ASC -> folders.sortedBy { it.name.lowercase() }
+    SortMode.ALFABETICA_DESC -> folders.sortedByDescending { it.name.lowercase() }
+    SortMode.QUANTIDADE_DESC -> folders.sortedWith(
+        compareByDescending<Folder> { cifrasPorPasta[it.id] ?: 0 }.thenBy { it.name.lowercase() }
+    )
+}
+
+// Aplica o SortMode em uma lista de cifras. QUANTIDADE_DESC cai em alfabética.
+internal fun sortSongs(songs: List<Song>, sort: SortMode): List<Song> = when (sort) {
+    SortMode.ALFABETICA_ASC -> songs.sortedBy { it.file.lowercase() }
+    SortMode.ALFABETICA_DESC -> songs.sortedByDescending { it.file.lowercase() }
+    SortMode.QUANTIDADE_DESC -> songs.sortedBy { it.file.lowercase() }
+}
+
+// Junta "Nome" + "Artista" no formato canônico que o Song.parseTitleArtist
+// já entende. Vazio em artista mantém só o nome (sem traço).
+internal fun juntarNomeEArtista(nome: String, artista: String): String {
+    val n = nome.trim()
+    val a = artista.trim()
+    return if (a.isEmpty()) n else "$n - $a"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -456,6 +546,56 @@ private fun Chip(
         shape = RoundedCornerShape(8.dp),
         colors = FilterChipDefaults.filterChipColors(),
     )
+}
+
+@Composable
+private fun SortDropdown(
+    atual: SortMode,
+    permitirQuantidade: Boolean,
+    onSelect: (SortMode) -> Unit,
+) {
+    var aberto by remember { mutableStateOf(false) }
+    val opcoes = SortMode.entries.filter { it != SortMode.QUANTIDADE_DESC || permitirQuantidade }
+    Surface(
+        onClick = { aberto = true },
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.Sort,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.size(6.dp))
+            Text(
+                "Ordenar: ${atual.label}",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Icon(
+                Icons.Filled.ArrowDropDown,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+    DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
+        opcoes.forEach { mode ->
+            DropdownMenuItem(
+                text = { Text(mode.label) },
+                trailingIcon = if (mode == atual) {
+                    { Icon(Icons.Filled.Check, contentDescription = null) }
+                } else null,
+                onClick = { aberto = false; onSelect(mode) },
+            )
+        }
+    }
 }
 
 @Composable
@@ -515,7 +655,7 @@ private fun SongItem(
                     )
                     if (pastaInfo != null) {
                         Spacer(Modifier.size(8.dp))
-                        ChipDePasta(pastaInfo.name)
+                        ChipDePasta(pastaInfo)
                     }
                 }
             }
@@ -553,7 +693,7 @@ private fun SongItem(
                         onClick = { overflowExpanded = false; onRename() },
                     )
                     DropdownMenuItem(
-                        text = { Text("Mover para pasta…") },
+                        text = { Text("Mover para pasta") },
                         leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null) },
                         onClick = { overflowExpanded = false; onMove() },
                     )
@@ -574,40 +714,41 @@ private fun SongItem(
     }
 }
 
+// Diálogo de renomear com dois campos (Nome e Artista) e dica embaixo.
+// Quando Artista vem vazio, o resultado é só o Nome — preserva o fluxo
+// de quem não quer separar autor.
 @Composable
 private fun RenomearDialog(
-    stemAtual: String,
+    nomeInicial: String,
+    artistaInicial: String,
     extensao: String,
     onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
+    onConfirm: (String, String) -> Unit,
 ) {
-    // TextFieldValue com selection cobrindo tudo: ao abrir, o teclado aparece
-    // e o nome já vem selecionado pra apagar com um toque.
-    var texto by remember(stemAtual) {
-        mutableStateOf(TextFieldValue(stemAtual, TextRange(0, stemAtual.length)))
+    var nome by remember(nomeInicial) {
+        mutableStateOf(TextFieldValue(nomeInicial, TextRange(0, nomeInicial.length)))
+    }
+    var artista by remember(artistaInicial) {
+        mutableStateOf(TextFieldValue(artistaInicial))
     }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
     val sufixoExt = if (extensao.isNotBlank()) "." + extensao.lowercase() else ""
-    val textoLimpo = texto.text.trim()
-    val mudou = textoLimpo != stemAtual && textoLimpo.isNotEmpty()
+    val nomeLimpo = nome.text.trim()
+    val artistaLimpo = artista.text.trim()
+    val mudou = nomeLimpo.isNotEmpty() &&
+        (nomeLimpo != nomeInicial || artistaLimpo != artistaInicial)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Renomear cifra") },
         text = {
             Column {
-                Text(
-                    "Mude como esta cifra aparece no app. O arquivo original não é alterado.",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
-                    value = texto,
-                    onValueChange = { texto = it },
-                    label = { Text("Nome") },
+                    value = nome,
+                    onValueChange = { nome = it },
+                    label = { Text("Nome da música") },
                     singleLine = true,
                     trailingIcon = if (sufixoExt.isNotEmpty()) {
                         {
@@ -623,11 +764,26 @@ private fun RenomearDialog(
                         .fillMaxWidth()
                         .focusRequester(focusRequester),
                 )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = artista,
+                    onValueChange = { artista = it },
+                    label = { Text("Artista (opcional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Dica: o nome aparece em destaque e o artista numa linha menor. " +
+                        "O arquivo original não é alterado.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(textoLimpo) },
+                onClick = { onConfirm(nomeLimpo, artistaLimpo) },
                 enabled = mudou,
             ) { Text("Salvar") }
         },
@@ -662,7 +818,7 @@ private fun AdicionarBottomSheet(
             Text(
                 "Adicionar à biblioteca",
                 fontSize = 16.sp,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(start = 24.dp, top = 4.dp, bottom = 12.dp),
             )
@@ -776,6 +932,7 @@ private fun PastaItem(
     onRenomear: () -> Unit,
     onExcluir: () -> Unit,
 ) {
+    val cor = entityColorByKey(folder.color)
     Surface(onClick = onClick, color = Color.Transparent) {
         Row(
             modifier = Modifier
@@ -787,13 +944,13 @@ private fun PastaItem(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .background(cor.container),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Filled.Folder,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    tint = cor.onContainer,
                     modifier = Modifier.size(22.dp),
                 )
             }
@@ -857,7 +1014,8 @@ private fun PastaOverflow(
 }
 
 @Composable
-private fun ChipDePasta(nome: String) {
+private fun ChipDePasta(folder: Folder) {
+    val cor = entityColorByKey(folder.color)
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
         shape = RoundedCornerShape(6.dp),
@@ -869,12 +1027,12 @@ private fun ChipDePasta(nome: String) {
             Icon(
                 Icons.Filled.Folder,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = cor.container,
                 modifier = Modifier.size(12.dp),
             )
             Spacer(Modifier.size(4.dp))
             Text(
-                text = nome,
+                text = folder.name,
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -883,33 +1041,60 @@ private fun ChipDePasta(nome: String) {
     }
 }
 
+// Diálogo unificado pra criar/renomear pasta: nome + paleta de 8 cores.
 @Composable
-private fun NovaPastaDialog(
+private fun PastaDialog(
+    titulo: String,
+    nomeInicial: String,
+    corInicial: String,
+    confirmLabel: String,
     onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
+    onConfirm: (String, String) -> Unit,
 ) {
-    var texto by remember { mutableStateOf("") }
+    var texto by remember(nomeInicial) {
+        mutableStateOf(TextFieldValue(nomeInicial, TextRange(0, nomeInicial.length)))
+    }
+    var corSelecionada by remember(corInicial) { mutableStateOf(corInicial) }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    val textoLimpo = texto.text.trim()
+    val mudouAlgo = textoLimpo.isNotEmpty() &&
+        (textoLimpo != nomeInicial || corSelecionada != corInicial)
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Nova pasta") },
+        title = { Text(titulo) },
         text = {
-            OutlinedTextField(
-                value = texto,
-                onValueChange = { texto = it },
-                label = { Text("Nome") },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester),
-            )
+            Column {
+                OutlinedTextField(
+                    value = texto,
+                    onValueChange = { texto = it },
+                    label = { Text("Nome") },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
+                )
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    "Cor",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                PaletaCores(
+                    selecionada = corSelecionada,
+                    onSelect = { corSelecionada = it },
+                )
+            }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(texto.trim()) },
-                enabled = texto.trim().isNotEmpty(),
-            ) { Text("Criar") }
+                onClick = { onConfirm(textoLimpo, corSelecionada) },
+                enabled = mudouAlgo,
+            ) { Text(confirmLabel) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancelar") }
@@ -918,40 +1103,42 @@ private fun NovaPastaDialog(
 }
 
 @Composable
-private fun RenomearPastaDialog(
-    nomeAtual: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
+internal fun PaletaCores(
+    selecionada: String,
+    onSelect: (String) -> Unit,
 ) {
-    var texto by remember(nomeAtual) {
-        mutableStateOf(TextFieldValue(nomeAtual, TextRange(0, nomeAtual.length)))
-    }
-    val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Renomear pasta") },
-        text = {
-            OutlinedTextField(
-                value = texto,
-                onValueChange = { texto = it },
-                label = { Text("Nome") },
-                singleLine = true,
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        EntityColorPalette.forEach { cor ->
+            val isSelected = cor.key == selecionada
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester),
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(texto.text.trim()) },
-                enabled = texto.text.trim().isNotEmpty() && texto.text.trim() != nomeAtual,
-            ) { Text("Salvar") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
-        },
-    )
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(cor.container)
+                    .border(
+                        width = if (isSelected) 3.dp else 0.dp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        shape = CircleShape,
+                    )
+                    .clickable { onSelect(cor.key) },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (isSelected) {
+                    Icon(
+                        Icons.Filled.Check,
+                        contentDescription = cor.label,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -1025,6 +1212,7 @@ private fun MoverParaPastaDialog(
                     }
                 }
                 folders.forEach { folder ->
+                    val cor = entityColorByKey(folder.color)
                     Surface(
                         onClick = { onMover(folder.id) },
                         color = Color.Transparent,
@@ -1037,7 +1225,7 @@ private fun MoverParaPastaDialog(
                             Icon(
                                 Icons.Filled.Folder,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = cor.container,
                             )
                             Spacer(Modifier.size(12.dp))
                             Text(
@@ -1074,7 +1262,7 @@ private fun MoverParaPastaDialog(
                         )
                         Spacer(Modifier.size(12.dp))
                         Text(
-                            "Criar nova pasta…",
+                            "Criar nova pasta",
                             fontSize = 15.sp,
                             color = MaterialTheme.colorScheme.primary,
                         )

@@ -29,6 +29,8 @@ class UserPreferences(private val context: Context) {
     private val keyFolders = stringSetPreferencesKey("folders_v1")
     private val keyRepertoires = stringSetPreferencesKey("repertoires_v1")
     private val keySetlistMigrated = booleanPreferencesKey("setlist_v1_migrated")
+    // Ordenação por aba (Todas/Favoritas/Recentes). Codec: "TAB=MODE;TAB=MODE".
+    private val keySortModes = stringPreferencesKey("sort_modes_v1")
 
     val library: Flow<List<LibraryEntry>> = context.dataStore.data.map { prefs ->
         prefs[keyLibrary]
@@ -140,6 +142,7 @@ class UserPreferences(private val context: Context) {
             prefs.remove(keyFolders)
             prefs.remove(keyRepertoires)
             prefs.remove(keySetlistMigrated)
+            prefs.remove(keySortModes)
         }
     }
 
@@ -257,22 +260,26 @@ class UserPreferences(private val context: Context) {
 
     // --- Pastas ---
 
-    suspend fun addFolder(name: String): String {
+    suspend fun addFolder(name: String, color: String = "green"): String {
         val id = java.util.UUID.randomUUID().toString()
         context.dataStore.edit { prefs ->
             val atual = prefs[keyFolders].orEmpty()
-            prefs[keyFolders] = atual + FolderCodec.encode(Folder(id, name.trim()))
+            prefs[keyFolders] = atual + FolderCodec.encode(Folder(id, name.trim(), color))
         }
         return id
     }
 
-    suspend fun renameFolder(id: String, novoNome: String) {
+    // Renomeia e/ou troca a cor numa única edição. Passe `color = null`
+    // para manter a cor atual.
+    suspend fun renameFolder(id: String, novoNome: String, color: String? = null) {
         val nome = novoNome.trim()
         if (nome.isBlank()) return
         context.dataStore.edit { prefs ->
             val atualizado = prefs[keyFolders].orEmpty()
                 .mapNotNull(FolderCodec::decode)
-                .map { if (it.id == id) it.copy(name = nome) else it }
+                .map {
+                    if (it.id == id) it.copy(name = nome, color = color ?: it.color) else it
+                }
                 .map(FolderCodec::encode)
                 .toSet()
             prefs[keyFolders] = atualizado
@@ -309,6 +316,16 @@ class UserPreferences(private val context: Context) {
                 .map(LibraryEntryCodec::encode)
                 .toSet()
         }
+    }
+
+    // --- Ordenação ---
+
+    val sortModesRaw: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[keySortModes].orEmpty()
+    }
+
+    suspend fun setSortModesRaw(raw: String) {
+        context.dataStore.edit { prefs -> prefs[keySortModes] = raw }
     }
 
     // --- ---

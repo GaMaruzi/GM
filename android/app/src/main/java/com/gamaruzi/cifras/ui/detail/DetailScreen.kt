@@ -93,6 +93,7 @@ import com.gamaruzi.cifras.data.Section
 import com.gamaruzi.cifras.data.Song
 import com.gamaruzi.cifras.data.SongFormat
 import com.gamaruzi.cifras.domain.Theory
+import com.gamaruzi.cifras.ui.common.entityColorByKey
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 
@@ -106,7 +107,7 @@ fun DetailScreen(
     onScrollPersist: (Int) -> Unit,
     onBack: () -> Unit,
     onToggleFavorite: () -> Unit,
-    onRename: (String) -> Unit,
+    onRename: (String, String) -> Unit,
     onMove: (String?) -> Unit,
     onDelete: () -> Unit,
     onPlayStage: () -> Unit,
@@ -195,7 +196,7 @@ fun DetailScreen(
                                 onClick = { menuExpanded = false; dialogRenomear = true },
                             )
                             DropdownMenuItem(
-                                text = { Text("Mover para pasta…") },
+                                text = { Text("Mover para pasta") },
                                 leadingIcon = {
                                     Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null)
                                 },
@@ -301,13 +302,14 @@ fun DetailScreen(
     }
 
     if (dialogRenomear) {
-        val stemAtual = if (song.artist == "—") song.title else "${song.title} - ${song.artist}"
+        val artistaInicial = if (song.artist == "—") "" else song.artist
         RenomearSongDialog(
-            stemAtual = stemAtual,
+            nomeInicial = song.title,
+            artistaInicial = artistaInicial,
             extensao = song.ext,
             onDismiss = { dialogRenomear = false },
-            onConfirm = { novoStem ->
-                onRename(novoStem)
+            onConfirm = { nome, artista ->
+                onRename(nome, artista)
                 dialogRenomear = false
             },
         )
@@ -369,46 +371,69 @@ private fun compartilharSong(context: android.content.Context, song: Song) {
 
 @Composable
 private fun RenomearSongDialog(
-    stemAtual: String,
+    nomeInicial: String,
+    artistaInicial: String,
     extensao: String,
     onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
+    onConfirm: (String, String) -> Unit,
 ) {
-    var texto by remember(stemAtual) {
-        mutableStateOf(TextFieldValue(stemAtual, TextRange(0, stemAtual.length)))
+    var nome by remember(nomeInicial) {
+        mutableStateOf(TextFieldValue(nomeInicial, TextRange(0, nomeInicial.length)))
+    }
+    var artista by remember(artistaInicial) {
+        mutableStateOf(TextFieldValue(artistaInicial))
     }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     val sufixoExt = if (extensao.isNotBlank()) "." + extensao.lowercase() else ""
-    val textoLimpo = texto.text.trim()
-    val mudou = textoLimpo != stemAtual && textoLimpo.isNotEmpty()
+    val nomeLimpo = nome.text.trim()
+    val artistaLimpo = artista.text.trim()
+    val mudou = nomeLimpo.isNotEmpty() &&
+        (nomeLimpo != nomeInicial || artistaLimpo != artistaInicial)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Renomear cifra") },
         text = {
-            OutlinedTextField(
-                value = texto,
-                onValueChange = { texto = it },
-                label = { Text("Nome") },
-                singleLine = true,
-                trailingIcon = if (sufixoExt.isNotEmpty()) {
-                    {
-                        Text(
-                            sufixoExt,
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(end = 12.dp),
-                        )
-                    }
-                } else null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester),
-            )
+            Column {
+                OutlinedTextField(
+                    value = nome,
+                    onValueChange = { nome = it },
+                    label = { Text("Nome da música") },
+                    singleLine = true,
+                    trailingIcon = if (sufixoExt.isNotEmpty()) {
+                        {
+                            Text(
+                                sufixoExt,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(end = 12.dp),
+                            )
+                        }
+                    } else null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = artista,
+                    onValueChange = { artista = it },
+                    label = { Text("Artista (opcional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Dica: o nome aparece em destaque e o artista numa linha menor. " +
+                        "O arquivo original não é alterado.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(textoLimpo) }, enabled = mudou) {
+            TextButton(onClick = { onConfirm(nomeLimpo, artistaLimpo) }, enabled = mudou) {
                 Text("Salvar")
             }
         },
@@ -450,6 +475,7 @@ private fun MoverSongDialog(
                     }
                 }
                 folders.forEach { folder ->
+                    val cor = entityColorByKey(folder.color)
                     Surface(
                         onClick = { onMover(folder.id) },
                         color = androidx.compose.ui.graphics.Color.Transparent,
@@ -460,7 +486,7 @@ private fun MoverSongDialog(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(Icons.Filled.Folder, contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary)
+                                tint = cor.container)
                             Spacer(Modifier.size(12.dp))
                             Text(
                                 folder.name, fontSize = 15.sp,

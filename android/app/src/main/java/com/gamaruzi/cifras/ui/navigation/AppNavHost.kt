@@ -22,6 +22,7 @@ import com.gamaruzi.cifras.ui.repertoires.AddSongsScreen
 import com.gamaruzi.cifras.ui.repertoires.RepertoireEditorScreen
 import com.gamaruzi.cifras.ui.repertoires.RepertoiresScreen
 import com.gamaruzi.cifras.ui.search.SearchScreen
+import com.gamaruzi.cifras.ui.search.juntarNomeEArtista
 import com.gamaruzi.cifras.ui.settings.SettingsScreen
 import com.gamaruzi.cifras.ui.stage.StageScreen
 
@@ -58,6 +59,7 @@ fun AppNavHost(appState: AppState = viewModel()) {
     val favorites by appState.favorites.collectAsStateWithLifecycle()
     val recents by appState.recents.collectAsStateWithLifecycle()
     val folders by appState.folders.collectAsStateWithLifecycle()
+    val sortModes by appState.sortModes.collectAsStateWithLifecycle()
     val scrollOffsets by appState.scrollOffsets.collectAsStateWithLifecycle()
     val lastAddResult by appState.lastAddResult.collectAsStateWithLifecycle()
 
@@ -130,6 +132,7 @@ fun AppNavHost(appState: AppState = viewModel()) {
                 favorites = favorites,
                 recents = recents,
                 folders = folders,
+                sortModes = sortModes,
                 snackbarHostState = snackbarHostState,
                 onOpenSong = { id ->
                     appState.markRecent(id)
@@ -147,10 +150,11 @@ fun AppNavHost(appState: AppState = viewModel()) {
                 },
                 onRename = appState::renameEntry,
                 onDelete = appState::removeFromLibrary,
-                onCreateFolder = appState::createFolder,
-                onRenameFolder = appState::renameFolder,
+                onCreateFolder = { nome, cor -> appState.createFolder(nome, cor) },
+                onRenameFolder = { id, nome, cor -> appState.renameFolder(id, nome, cor) },
                 onDeleteFolder = appState::deleteFolder,
                 onMoveToFolder = appState::moveToFolder,
+                onSortModeChange = appState::setSortMode,
                 onStartStage = { navController.navigate(Rotas.REPERTOIRES) },
             )
         }
@@ -174,7 +178,9 @@ fun AppNavHost(appState: AppState = viewModel()) {
                     onScrollPersist = { offset -> appState.saveScrollOffset(song.id, offset) },
                     onBack = { navController.popBackStack() },
                     onToggleFavorite = { appState.toggleFavorite(song.id) },
-                    onRename = { novoNome -> appState.renameEntry(song.id, novoNome) },
+                    onRename = { nome, artista ->
+                        appState.renameEntry(song.id, juntarNomeEArtista(nome, artista))
+                    },
                     onMove = { folderId -> appState.moveToFolder(song.id, folderId) },
                     onDelete = {
                         appState.removeFromLibrary(song.id)

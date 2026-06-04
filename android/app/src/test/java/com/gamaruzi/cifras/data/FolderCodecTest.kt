@@ -9,15 +9,23 @@ class FolderCodecTest {
     private val SEP = ""
 
     @Test
-    fun `roundtrip preserva id e nome`() {
-        val folder = Folder(id = "abc-123-uuid", name = "Show de domingo")
+    fun `roundtrip v2 preserva id, nome e cor`() {
+        val folder = Folder(id = "abc-123-uuid", name = "Show de domingo", color = "blue")
         assertEquals(folder, FolderCodec.decode(FolderCodec.encode(folder)))
     }
 
     @Test
     fun `nome com acentos e simbolos sobrevive`() {
-        val folder = Folder(id = "x", name = "É: Música · Coração (versão 2)")
+        val folder = Folder(id = "x", name = "É: Música · Coração (versão 2)", color = "purple")
         assertEquals(folder, FolderCodec.decode(FolderCodec.encode(folder)))
+    }
+
+    @Test
+    fun `decode v1 sem cor cai em verde default (retrocompat)`() {
+        // Pastas criadas antes da v1.2.0 não tinham cor — devem entrar como "green".
+        val rawV1 = "abc" + SEP + "Show"
+        val folder = FolderCodec.decode(rawV1)
+        assertEquals(Folder(id = "abc", name = "Show", color = "green"), folder)
     }
 
     @Test
@@ -33,8 +41,14 @@ class FolderCodecTest {
     }
 
     @Test
-    fun `encode usa o separador U+0001`() {
-        val raw = FolderCodec.encode(Folder("aaa", "bbb"))
-        assertEquals("aaa" + SEP + "bbb", raw)
+    fun `decode com cor em branco cai no default`() {
+        val folder = FolderCodec.decode("abc" + SEP + "Nome" + SEP + "")
+        assertEquals(Folder(id = "abc", name = "Nome", color = "green"), folder)
+    }
+
+    @Test
+    fun `encode escreve v2 com tres campos`() {
+        val raw = FolderCodec.encode(Folder("aaa", "bbb", "red"))
+        assertEquals("aaa" + SEP + "bbb" + SEP + "red", raw)
     }
 }
