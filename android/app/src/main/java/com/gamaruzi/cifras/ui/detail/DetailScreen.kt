@@ -1,8 +1,10 @@
 package com.gamaruzi.cifras.ui.detail
 
+import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,26 +16,39 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CreateNewFolder
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatSize
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -42,6 +57,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,18 +67,26 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.gamaruzi.cifras.data.Folder
 import com.gamaruzi.cifras.data.Line
 import com.gamaruzi.cifras.data.PdfPageRenderer
 import com.gamaruzi.cifras.data.Section
@@ -77,12 +101,21 @@ import kotlinx.coroutines.flow.debounce
 fun DetailScreen(
     song: Song,
     isFavorite: Boolean,
+    folders: List<Folder>,
     initialScrollOffset: Int,
     onScrollPersist: (Int) -> Unit,
     onBack: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onRename: (String) -> Unit,
+    onMove: (String?) -> Unit,
+    onDelete: () -> Unit,
     onPlayStage: () -> Unit,
 ) {
+    val context = LocalContext.current
+    var menuExpanded by remember { mutableStateOf(false) }
+    var dialogRenomear by remember { mutableStateOf(false) }
+    var dialogMover by remember { mutableStateOf(false) }
+    var dialogExcluir by remember { mutableStateOf(false) }
     var fontSize by remember { mutableIntStateOf(16) }
     // Reseta a transposição quando troca de música — caso contrário um +3
     // grudado da música anterior se aplicaria à nova sem o usuário saber.
@@ -148,21 +181,53 @@ fun DetailScreen(
                                    else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    IconButton(onClick = {}) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "Mais opções")
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "Mais opções")
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Renomear") },
+                                leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                                onClick = { menuExpanded = false; dialogRenomear = true },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Mover para pasta…") },
+                                leadingIcon = {
+                                    Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null)
+                                },
+                                onClick = { menuExpanded = false; dialogMover = true },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Compartilhar") },
+                                leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null) },
+                                onClick = {
+                                    menuExpanded = false
+                                    compartilharSong(context, song)
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Excluir") },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Filled.Delete,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                    )
+                                },
+                                onClick = { menuExpanded = false; dialogExcluir = true },
+                            )
+                        }
                     }
                 },
             )
         },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onPlayStage,
-                icon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
-                text = { Text("Tocar no palco") },
-            )
-        },
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Column(modifier = Modifier.fillMaxSize()) {
 
             if (controlesAtivos) {
                 Row(
@@ -213,7 +278,218 @@ fun DetailScreen(
                 SongFormat.PDF -> PdfContent(song, scrollState)
             }
         }
+
+        // Botão "Tocar no palco" centralizado, sobreposto ao conteúdo. Usa
+        // FilledTonalButton (translúcido por natureza) em vez de FAB para o
+        // visual mais discreto pedido.
+        FilledTonalButton(
+            onClick = onPlayStage,
+            shape = RoundedCornerShape(28.dp),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 24.dp),
+        ) {
+            Icon(
+                Icons.Filled.PlayArrow,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.size(8.dp))
+            Text("Tocar no palco", fontSize = 15.sp, fontWeight = FontWeight.Medium)
+        }
+        }
     }
+
+    if (dialogRenomear) {
+        val stemAtual = if (song.artist == "—") song.title else "${song.title} - ${song.artist}"
+        RenomearSongDialog(
+            stemAtual = stemAtual,
+            extensao = song.ext,
+            onDismiss = { dialogRenomear = false },
+            onConfirm = { novoStem ->
+                onRename(novoStem)
+                dialogRenomear = false
+            },
+        )
+    }
+
+    if (dialogMover) {
+        MoverSongDialog(
+            song = song,
+            folders = folders,
+            onDismiss = { dialogMover = false },
+            onMover = { folderId ->
+                onMove(folderId)
+                dialogMover = false
+            },
+        )
+    }
+
+    if (dialogExcluir) {
+        AlertDialog(
+            onDismissRequest = { dialogExcluir = false },
+            title = { Text("Excluir da biblioteca?") },
+            text = {
+                Text(
+                    "\"${song.title}\" será removida do Tap Cifras. O arquivo original no celular não é apagado.",
+                    fontSize = 14.sp,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    dialogExcluir = false
+                    onDelete()
+                }) {
+                    Text("Excluir", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { dialogExcluir = false }) { Text("Cancelar") }
+            },
+        )
+    }
+}
+
+private fun compartilharSong(context: android.content.Context, song: Song) {
+    runCatching {
+        val mime = when (song.format) {
+            SongFormat.TEXT -> "text/plain"
+            SongFormat.PDF -> "application/pdf"
+            SongFormat.IMAGE -> "image/*"
+        }
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = mime
+            putExtra(Intent.EXTRA_STREAM, Uri.parse(song.id))
+            putExtra(Intent.EXTRA_SUBJECT, song.title)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, "Compartilhar cifra"))
+    }
+}
+
+@Composable
+private fun RenomearSongDialog(
+    stemAtual: String,
+    extensao: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var texto by remember(stemAtual) {
+        mutableStateOf(TextFieldValue(stemAtual, TextRange(0, stemAtual.length)))
+    }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    val sufixoExt = if (extensao.isNotBlank()) "." + extensao.lowercase() else ""
+    val textoLimpo = texto.text.trim()
+    val mudou = textoLimpo != stemAtual && textoLimpo.isNotEmpty()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Renomear cifra") },
+        text = {
+            OutlinedTextField(
+                value = texto,
+                onValueChange = { texto = it },
+                label = { Text("Nome") },
+                singleLine = true,
+                trailingIcon = if (sufixoExt.isNotEmpty()) {
+                    {
+                        Text(
+                            sufixoExt,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(end = 12.dp),
+                        )
+                    }
+                } else null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(textoLimpo) }, enabled = mudou) {
+                Text("Salvar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        },
+    )
+}
+
+@Composable
+private fun MoverSongDialog(
+    song: Song,
+    folders: List<Folder>,
+    onDismiss: () -> Unit,
+    onMover: (String?) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Mover \"${song.title}\"") },
+        text = {
+            Column {
+                Surface(
+                    onClick = { onMover(null) },
+                    color = androidx.compose.ui.graphics.Color.Transparent,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Filled.Home, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.size(12.dp))
+                        Text("Raiz (biblioteca)", fontSize = 15.sp, modifier = Modifier.weight(1f))
+                        if (song.folderId == null) {
+                            Icon(Icons.Filled.Check, contentDescription = "Atual",
+                                tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+                folders.forEach { folder ->
+                    Surface(
+                        onClick = { onMover(folder.id) },
+                        color = androidx.compose.ui.graphics.Color.Transparent,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Filled.Folder, contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.size(12.dp))
+                            Text(
+                                folder.name, fontSize = 15.sp,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                            if (song.folderId == folder.id) {
+                                Icon(Icons.Filled.Check, contentDescription = "Atual",
+                                    tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                }
+                if (folders.isEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Você ainda não criou nenhuma pasta. Crie pela tela inicial " +
+                            "(botão +) pra organizar suas cifras.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        },
+    )
 }
 
 @Composable
@@ -257,17 +533,28 @@ private fun TextContent(
 
 @Composable
 private fun ImageContent(song: Song, scrollState: ScrollState) {
+    var scale by remember(song.id) { mutableFloatStateOf(1f) }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
             .padding(horizontal = 12.dp, vertical = 4.dp),
     ) {
+        // ContentScale.Fit + altura natural deixa a imagem aparecer inteira;
+        // pinch (2 dedos) amplia a partir de 1.0x. Drag de 1 dedo continua
+        // rolando o Column verticalmente.
         AsyncImage(
             model = Uri.parse(song.id),
             contentDescription = song.title,
-            contentScale = ContentScale.FillWidth,
-            modifier = Modifier.fillMaxWidth(),
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxWidth()
+                .pointerInput(song.id) {
+                    detectTransformGestures { _, _, zoom, _ ->
+                        scale = (scale * zoom).coerceIn(1f, 4f)
+                    }
+                }
+                .graphicsLayer(scaleX = scale, scaleY = scale),
         )
         Spacer(Modifier.height(12.dp))
         Text(
@@ -305,6 +592,7 @@ private fun PdfContent(song: Song, scrollState: ScrollState) {
             )
         }
     } else {
+        var scale by remember(song.id) { mutableFloatStateOf(1f) }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -318,7 +606,13 @@ private fun PdfContent(song: Song, scrollState: ScrollState) {
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(bmp.width.toFloat() / bmp.height.toFloat()),
+                        .aspectRatio(bmp.width.toFloat() / bmp.height.toFloat())
+                        .pointerInput(song.id) {
+                            detectTransformGestures { _, _, zoom, _ ->
+                                scale = (scale * zoom).coerceIn(1f, 4f)
+                            }
+                        }
+                        .graphicsLayer(scaleX = scale, scaleY = scale),
                 )
             }
             Spacer(Modifier.height(12.dp))

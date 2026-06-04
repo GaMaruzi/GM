@@ -31,7 +31,10 @@ object Rotas {
     const val STAGE = "stage"
     const val SETTINGS = "settings"
 
-    fun detail(songId: String) = "detail/" + java.net.URLEncoder.encode(songId, "UTF-8")
+    // Uri.encode codifica `/` `:` `%` e demais reservados. O Navigation Compose
+    // decodifica via Uri.decode no caminho oposto — só uma camada de encode,
+    // sem URLEncoder/URLDecoder em cima.
+    fun detail(songId: String) = "detail/" + android.net.Uri.encode(songId)
 }
 
 @Composable
@@ -146,8 +149,9 @@ fun AppNavHost(appState: AppState = viewModel()) {
             route = Rotas.DETAIL,
             arguments = listOf(navArgument("songId") { type = NavType.StringType }),
         ) { backStackEntry ->
-            val encoded = backStackEntry.arguments?.getString("songId")
-            val songId = encoded?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+            // Navigation Compose já decodifica o argumento via Uri.decode antes
+            // de entregar — não aplicar URLDecoder em cima (perde %XX preservados).
+            val songId = backStackEntry.arguments?.getString("songId")
             val song = songId?.let { appState.song(it) }
             if (song == null) {
                 LaunchedEffect(Unit) { navController.popBackStack() }
@@ -155,10 +159,17 @@ fun AppNavHost(appState: AppState = viewModel()) {
                 DetailScreen(
                     song = song,
                     isFavorite = song.id in favorites,
+                    folders = folders,
                     initialScrollOffset = scrollOffsets[song.id] ?: 0,
                     onScrollPersist = { offset -> appState.saveScrollOffset(song.id, offset) },
                     onBack = { navController.popBackStack() },
                     onToggleFavorite = { appState.toggleFavorite(song.id) },
+                    onRename = { novoNome -> appState.renameEntry(song.id, novoNome) },
+                    onMove = { folderId -> appState.moveToFolder(song.id, folderId) },
+                    onDelete = {
+                        appState.removeFromLibrary(song.id)
+                        navController.popBackStack()
+                    },
                     onPlayStage = { navController.navigate(Rotas.STAGE) },
                 )
             }
