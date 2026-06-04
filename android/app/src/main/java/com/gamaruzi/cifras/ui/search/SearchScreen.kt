@@ -413,12 +413,16 @@ fun SearchScreen(
     }
 
     songParaRenomear?.let { song ->
+        // O stem corrente é o nomeExibicao sem extensão. Quando há artista
+        // identificado, reconstrói "Título - Artista" pro usuário enxergar
+        // tudo que pode editar.
+        val stemAtual = if (song.artist == "—") song.title else "${song.title} - ${song.artist}"
         RenomearDialog(
-            nomeAtual = song.file,
-            titulo = song.title,
+            stemAtual = stemAtual,
+            extensao = song.ext,
             onDismiss = { songParaRenomear = null },
-            onConfirm = { novoNome ->
-                onRename(song.id, novoNome)
+            onConfirm = { novoStem ->
+                onRename(song.id, novoStem)
                 songParaRenomear = null
             },
         )
@@ -572,12 +576,23 @@ private fun SongItem(
 
 @Composable
 private fun RenomearDialog(
-    nomeAtual: String,
-    titulo: String,
+    stemAtual: String,
+    extensao: String,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
-    var texto by remember(nomeAtual) { mutableStateOf(nomeAtual) }
+    // TextFieldValue com selection cobrindo tudo: ao abrir, o teclado aparece
+    // e o nome já vem selecionado pra apagar com um toque.
+    var texto by remember(stemAtual) {
+        mutableStateOf(TextFieldValue(stemAtual, TextRange(0, stemAtual.length)))
+    }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    val sufixoExt = if (extensao.isNotBlank()) "." + extensao.lowercase() else ""
+    val textoLimpo = texto.text.trim()
+    val mudou = textoLimpo != stemAtual && textoLimpo.isNotEmpty()
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Renomear cifra") },
@@ -594,20 +609,26 @@ private fun RenomearDialog(
                     onValueChange = { texto = it },
                     label = { Text("Nome") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "Dica: use o formato \"Título - Artista.ext\" pra preencher os dois campos.",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    trailingIcon = if (sufixoExt.isNotEmpty()) {
+                        {
+                            Text(
+                                sufixoExt,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(end = 12.dp),
+                            )
+                        }
+                    } else null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
                 )
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(texto) },
-                enabled = texto.isNotBlank() && texto != nomeAtual,
+                onClick = { onConfirm(textoLimpo) },
+                enabled = mudou,
             ) { Text("Salvar") }
         },
         dismissButton = {
