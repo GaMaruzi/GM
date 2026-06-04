@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -513,11 +514,16 @@ internal fun sortFolders(
     SortMode.QUANTIDADE_DESC -> folders.sortedWith(
         compareByDescending<Folder> { cifrasPorPasta[it.id] ?: 0 }.thenBy { it.name.lowercase() }
     )
+    SortMode.QUANTIDADE_ASC -> folders.sortedWith(
+        compareBy<Folder> { cifrasPorPasta[it.id] ?: 0 }.thenBy { it.name.lowercase() }
+    )
 }
 
-// Aplica o SortMode em uma lista de cifras. QUANTIDADE_DESC cai em alfabética.
+// Aplica o SortMode em uma lista de cifras. Modos de quantidade caem em
+// alfabética, já que "tamanho" só faz sentido em pastas.
 internal fun sortSongs(songs: List<Song>, sort: SortMode): List<Song> = when (sort) {
-    SortMode.ALFABETICA_ASC -> songs.sortedBy { it.file.lowercase() }
+    SortMode.ALFABETICA_ASC,
+    SortMode.QUANTIDADE_ASC -> songs.sortedBy { it.file.lowercase() }
     SortMode.ALFABETICA_DESC -> songs.sortedByDescending { it.file.lowercase() }
     SortMode.QUANTIDADE_DESC -> songs.sortedBy { it.file.lowercase() }
 }
@@ -555,7 +561,12 @@ private fun SortDropdown(
     onSelect: (SortMode) -> Unit,
 ) {
     var aberto by remember { mutableStateOf(false) }
-    val opcoes = SortMode.entries.filter { it != SortMode.QUANTIDADE_DESC || permitirQuantidade }
+    val opcoes = SortMode.entries.filter { mode ->
+        when (mode) {
+            SortMode.QUANTIDADE_DESC, SortMode.QUANTIDADE_ASC -> permitirQuantidade
+            else -> true
+        }
+    }
     Surface(
         onClick = { aberto = true },
         shape = RoundedCornerShape(20.dp),
@@ -1021,7 +1032,12 @@ private fun ChipDePasta(folder: Folder) {
         shape = RoundedCornerShape(6.dp),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            // widthIn limita o crescimento do chip pra não empurrar o
+            // nome/artista da cifra. Quando a pasta tem nome longo, o
+            // overflow Ellipsis truncа.
+            modifier = Modifier
+                .widthIn(max = 96.dp)
+                .padding(horizontal = 6.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -1036,12 +1052,17 @@ private fun ChipDePasta(folder: Folder) {
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
 }
 
 // Diálogo unificado pra criar/renomear pasta: nome + paleta de 8 cores.
+// Nome é limitado a FOLDER_NAME_MAX_LEN caracteres pra não estourar visualmente
+// na lista, no breadcrumb e no chip de pasta da cifra.
+internal const val FOLDER_NAME_MAX_LEN = 20
+
 @Composable
 private fun PastaDialog(
     titulo: String,
@@ -1059,7 +1080,8 @@ private fun PastaDialog(
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
     val textoLimpo = texto.text.trim()
-    val mudouAlgo = textoLimpo.isNotEmpty() &&
+    val excedeu = textoLimpo.length > FOLDER_NAME_MAX_LEN
+    val mudouAlgo = textoLimpo.isNotEmpty() && !excedeu &&
         (textoLimpo != nomeInicial || corSelecionada != corInicial)
 
     AlertDialog(
@@ -1069,14 +1091,27 @@ private fun PastaDialog(
             Column {
                 OutlinedTextField(
                     value = texto,
-                    onValueChange = { texto = it },
+                    // Bloqueia entrada acima do limite — não é tradeoff:
+                    // o usuário tenta digitar e simplesmente para. Combinado
+                    // com supportingText, fica claro o limite.
+                    onValueChange = { novo ->
+                        if (novo.text.length <= FOLDER_NAME_MAX_LEN) texto = novo
+                    },
                     label = { Text("Nome") },
                     singleLine = true,
+                    isError = excedeu,
+                    supportingText = {
+                        Text(
+                            "${textoLimpo.length}/$FOLDER_NAME_MAX_LEN caracteres",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(focusRequester),
                 )
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(8.dp))
                 Text(
                     "Cor",
                     fontSize = 13.sp,

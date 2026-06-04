@@ -41,10 +41,12 @@ import com.gamaruzi.cifras.ui.navigation.AppNavHost
 import com.gamaruzi.cifras.ui.theme.CifrasTheme
 import kotlinx.coroutines.delay
 
-// Tempo total mínimo da splash (nativa + overlay Compose). Garante leitura
-// do slogan mesmo quando a UI carrega rápido. Curto o bastante pra não
-// frustrar quem só quer abrir o app.
-private const val SPLASH_TOTAL_MS = 1200L
+// Tempo total mínimo da splash. A janela nativa fica só com o fundo verde;
+// o logo + slogan vêm pelo overlay Compose com fadeIn/fadeOut. 1600ms é
+// confortável pra ler o slogan sem atrasar quem só quer abrir o app.
+private const val SPLASH_TOTAL_MS = 1600L
+private const val OVERLAY_FADE_IN_MS = 280
+private const val OVERLAY_FADE_OUT_MS = 320
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -85,8 +87,14 @@ class MainActivity : ComponentActivity() {
                     AppNavHost(appState = appState)
                     AnimatedVisibility(
                         visible = showOverlay,
-                        enter = androidx.compose.animation.EnterTransition.None,
-                        exit = fadeOut(animationSpec = tween(durationMillis = 220)),
+                        // FadeIn cobre o gap entre a splash nativa (só fundo
+                        // verde) e o overlay Compose (verde + logo + slogan).
+                        // Os dois compartilham o mesmo verde, então o fade
+                        // só aparece nos elementos visuais (logo + texto).
+                        enter = androidx.compose.animation.fadeIn(
+                            animationSpec = tween(durationMillis = OVERLAY_FADE_IN_MS),
+                        ),
+                        exit = fadeOut(animationSpec = tween(durationMillis = OVERLAY_FADE_OUT_MS)),
                     ) {
                         SplashOverlay()
                     }
@@ -114,14 +122,24 @@ private fun SplashOverlay() {
                 painter = painterResource(id = R.drawable.splash_logo),
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(180.dp),
+                // 132dp dá folga visual; antes 180dp encostava no slogan
+                // em telas menores.
+                modifier = Modifier.size(132.dp),
             )
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             Text(
-                text = "Feito por músicos para músicos",
+                text = "Feito por músicos",
                 color = Color.White,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Medium,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "para músicos",
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
             )
         }

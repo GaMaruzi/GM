@@ -11,14 +11,13 @@
 
     <!--
       Splash screen via androidx.core.splashscreen (Android 12+ nativo,
-      backport até API 28). Fundo verde sólido + logo branco. O slogan
-      "Feito por músicos para músicos" entra como overlay Compose durante
-      1.2s para garantir tempo de leitura (ver MainActivity).
-      postSplashScreenTheme volta pro tema padrão depois.
+      backport até API 28). Só fundo verde sólido — sem ícone na splash
+      nativa, porque a API mascara o ícone em viewport circular e cortava
+      o logo. Logo + slogan vêm pelo overlay Compose em MainActivity, com
+      fade suave, garantindo aparência consistente em todas as APIs.
     -->
     <style name="Theme.Cifras.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splash_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
         <item name="postSplashScreenTheme">@style/Theme.Cifras</item>
     </style>
 </resources>

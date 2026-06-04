@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
@@ -231,15 +233,28 @@ fun DetailScreen(
         Column(modifier = Modifier.fillMaxSize()) {
 
             if (controlesAtivos) {
+                // Altura fixa de 48dp pra Row inteira: o botão de reset
+                // (IconButton 40dp) é renderizado num slot de tamanho
+                // constante. Quando semis == 0 ele fica invisível mas o
+                // espaço continua reservado — assim aumentar/diminuir o
+                // tom não causa "respiração" no layout.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
+                        .height(48.dp)
+                        .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     StepperBox {
                         Stepper(Icons.Filled.Remove, "Tom abaixo") { semis-- }
-                        Box(modifier = Modifier.padding(horizontal = 8.dp)) {
+                        // Largura mínima fixa pro display do tom: acordes
+                        // como "F#" ou "Bb" não vão expandir o stepper.
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 8.dp)
+                                .width(28.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
                             Text(
                                 text = tomExibicao,
                                 fontSize = 15.sp,
@@ -250,9 +265,24 @@ fun DetailScreen(
                         }
                         Stepper(Icons.Filled.Add, "Tom acima") { semis++ }
                     }
-                    if (semis != 0) {
-                        TextButton(onClick = { semis = 0 }) {
-                            Text("↺ original", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp)
+                            .size(width = 40.dp, height = 40.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (semis != 0) {
+                            IconButton(
+                                onClick = { semis = 0 },
+                                modifier = Modifier.size(36.dp),
+                            ) {
+                                Icon(
+                                    Icons.Filled.Refresh,
+                                    contentDescription = "Voltar ao tom original",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
                         }
                     }
                     Spacer(Modifier.weight(1f))
@@ -271,6 +301,7 @@ fun DetailScreen(
                         }
                     }
                 }
+                Spacer(Modifier.height(8.dp))
             }
 
             when (song.format) {

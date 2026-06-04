@@ -5,13 +5,14 @@ package com.gamaruzi.cifras.ui.search
 //
 // - ALFABETICA_ASC / ALFABETICA_DESC: aplica em pastas (pelo nome) e
 //   em cifras (pelo nome de exibição).
-// - QUANTIDADE_DESC: aplica em pastas (pelo número de cifras). Para
-//   cifras, cai em ALFABETICA_ASC porque "quantidade" não faz sentido
-//   numa lista plana de cifras.
+// - QUANTIDADE_DESC / ASC: aplica em pastas (pelo número de cifras).
+//   Para cifras, cai em ALFABETICA_ASC porque "quantidade" não faz
+//   sentido numa lista plana de cifras.
 enum class SortMode(val label: String) {
     ALFABETICA_ASC("A → Z"),
     ALFABETICA_DESC("Z → A"),
-    QUANTIDADE_DESC("Mais cifras");
+    QUANTIDADE_DESC("Maior pasta"),
+    QUANTIDADE_ASC("Menor pasta");
 }
 
 // Codec compacto: "TAB=MODE;TAB=MODE". Tab ausente cai no default.
