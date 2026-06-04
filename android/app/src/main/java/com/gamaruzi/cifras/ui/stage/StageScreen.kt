@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -39,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -120,6 +123,12 @@ private fun StagePalco(
 
     val songAtual = musicas[indice.coerceIn(0, musicas.size - 1)]
     val velocidade = speeds[songAtual.id] ?: 0
+    val ehTexto = songAtual.format == SongFormat.TEXT
+
+    // Zoom para IMAGE/PDF — local da música atual. Reseta ao trocar de música.
+    // Reusa A−/A+ no chrome (PR 15): em vez de fonte (que só faz sentido em
+    // TEXT), eles ajustam zoom quando a cifra é imagem ou PDF.
+    var imageScale by remember(songAtual.id) { mutableFloatStateOf(1f) }
 
     // Reseta scroll ao trocar de música. ScrollState é compartilhado entre
     // os 3 renderizadores para o auto-scroll funcionar uniformemente.
@@ -162,21 +171,17 @@ private fun StagePalco(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            // detectTapGestures não consome eventos de drag → o scroll vertical
-            // continua funcionando dentro do conteúdo. Janela de double-tap
-            // ~280ms é o padrão do gesture detector.
+            // detectTapGestures não consome drag → scroll vertical e pinch
+            // (2 dedos, capturado pelo conteúdo IMG/PDF) seguem funcionando.
+            // Toque à esquerda da tela = anterior; à direita = próxima.
             .pointerInput(musicas.size) {
                 detectTapGestures(
-                    onTap = {
+                    onTap = { offset ->
                         chromeVisivel = true
-                        if (indice < musicas.size - 1) {
-                            indice++
-                        }
-                    },
-                    onDoubleTap = {
-                        chromeVisivel = true
-                        if (indice > 0) {
-                            indice--
+                        if (offset.x < size.width / 2f) {
+                            if (indice > 0) indice--
+                        } else {
+                            if (indice < musicas.size - 1) indice++
                         }
                     },
                 )
@@ -185,8 +190,12 @@ private fun StagePalco(
         // Conteúdo principal
         when (songAtual.format) {
             SongFormat.TEXT -> StageText(songAtual, fontSize.sp, scrollState)
-            SongFormat.IMAGE -> StageImage(songAtual, scrollState)
-            SongFormat.PDF -> StagePdf(songAtual, scrollState)
+            SongFormat.IMAGE -> StageImage(songAtual, scrollState, imageScale) { z ->
+                imageScale = z
+            }
+            SongFormat.PDF -> StagePdf(songAtual, scrollState, imageScale) { z ->
+                imageScale = z
+            }
         }
 
         // Chrome (TopBar + BottomBar + dots) com fade
@@ -202,15 +211,18 @@ private fun StagePalco(
                 StageBottomBar(
                     indice = indice,
                     total = musicas.size,
-                    fontPodeReduzir = fontSize > FONT_MIN,
-                    fontPodeAumentar = fontSize < FONT_MAX,
-                    onFontMinus = {
-                        fontSize = (fontSize - 2).coerceAtLeast(FONT_MIN)
-                        chromeVisivel = true   // dá mais 3.2s pra outro ajuste
-                    },
-                    onFontPlus = {
-                        fontSize = (fontSize + 2).coerceAtMost(FONT_MAX)
+                    ehTexto = ehTexto,
+                    podeMinus = if (ehTexto) fontSize > FONT_MIN else imageScale > 1f,
+                    podePlus = if (ehTexto) fontSize < FONT_MAX else imageScale < 4f,
+                    onMinus = {
                         chromeVisivel = true
+                        if (ehTexto) fontSize = (fontSize - 2).coerceAtLeast(FONT_MIN)
+                        else imageScale = (imageScale - 0.5f).coerceAtLeast(1f)
+                    },
+                    onPlus = {
+                        chromeVisivel = true
+                        if (ehTexto) fontSize = (fontSize + 2).coerceAtMost(FONT_MAX)
+                        else imageScale = (imageScale + 0.5f).coerceAtMost(4f)
                     },
                 )
             }
@@ -303,10 +315,11 @@ private fun StageTopBar(
 private fun BoxScope.StageBottomBar(
     indice: Int,
     total: Int,
-    fontPodeReduzir: Boolean,
-    fontPodeAumentar: Boolean,
-    onFontMinus: () -> Unit,
-    onFontPlus: () -> Unit,
+    ehTexto: Boolean,
+    podeMinus: Boolean,
+    podePlus: Boolean,
+    onMinus: () -> Unit,
+    onPlus: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -316,7 +329,7 @@ private fun BoxScope.StageBottomBar(
             .padding(horizontal = 16.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Dots de progresso do setlist
+        // Dots de progresso do repertório
         DotsProgresso(indice = indice, total = total)
         Spacer(Modifier.height(12.dp))
         Row(
@@ -324,9 +337,12 @@ private fun BoxScope.StageBottomBar(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            StageActionButton(label = "A−", enabled = fontPodeReduzir, onClick = onFontMinus)
+            // TEXT: A−/A+ controla fonte. IMAGE/PDF: ZoomOut/ZoomIn no conteúdo.
+            val labelMinus = if (ehTexto) "A−" else "−"
+            val labelPlus = if (ehTexto) "A+" else "+"
+            StageActionButton(label = labelMinus, enabled = podeMinus, onClick = onMinus)
             Spacer(Modifier.size(12.dp))
-            StageActionButton(label = "A+", enabled = fontPodeAumentar, onClick = onFontPlus)
+            StageActionButton(label = labelPlus, enabled = podePlus, onClick = onPlus)
         }
     }
 }
@@ -388,14 +404,14 @@ private fun DicaInicial(onDismiss: () -> Unit) {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                "Toque única vez para a próxima",
+                "Toque na metade direita → próxima",
                 color = StageFg,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "Toque duas vezes para voltar",
+                "Toque na metade esquerda → anterior",
                 color = StageFg,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,
@@ -457,7 +473,12 @@ private fun StageLine(line: Line, fontSize: TextUnit) {
 }
 
 @Composable
-private fun StageImage(song: Song, scrollState: ScrollState) {
+private fun StageImage(
+    song: Song,
+    scrollState: ScrollState,
+    scale: Float,
+    onScaleChange: (Float) -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -467,14 +488,26 @@ private fun StageImage(song: Song, scrollState: ScrollState) {
         AsyncImage(
             model = Uri.parse(song.id),
             contentDescription = song.title,
-            contentScale = ContentScale.FillWidth,
-            modifier = Modifier.fillMaxWidth(),
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxWidth()
+                .pointerInput(song.id) {
+                    detectTransformGestures { _, _, zoom, _ ->
+                        onScaleChange((scale * zoom).coerceIn(1f, 4f))
+                    }
+                }
+                .graphicsLayer(scaleX = scale, scaleY = scale),
         )
     }
 }
 
 @Composable
-private fun StagePdf(song: Song, scrollState: ScrollState) {
+private fun StagePdf(
+    song: Song,
+    scrollState: ScrollState,
+    scale: Float,
+    onScaleChange: (Float) -> Unit,
+) {
     val context = LocalContext.current
     val density = LocalDensity.current
     val widthDp = LocalConfiguration.current.screenWidthDp.dp
@@ -508,7 +541,13 @@ private fun StagePdf(song: Song, scrollState: ScrollState) {
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(bmp.width.toFloat() / bmp.height.toFloat()),
+                        .aspectRatio(bmp.width.toFloat() / bmp.height.toFloat())
+                        .pointerInput(song.id) {
+                            detectTransformGestures { _, _, zoom, _ ->
+                                onScaleChange((scale * zoom).coerceIn(1f, 4f))
+                            }
+                        }
+                        .graphicsLayer(scaleX = scale, scaleY = scale),
                 )
             }
         }
