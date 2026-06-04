@@ -199,9 +199,23 @@ class UserPreferences(private val context: Context) {
         }
     }
 
-    suspend fun addRepertoire(name: String): String {
+    suspend fun addRepertoire(
+        name: String,
+        color: String = "green",
+        defaultTextZoom: Int = 18,
+        defaultImageZoom: Float = 1.0f,
+        defaultScrollSpeed: Int = 0,
+    ): String {
         val id = java.util.UUID.randomUUID().toString()
-        val rep = Repertoire(id = id, name = name.trim(), songIds = emptyList())
+        val rep = Repertoire(
+            id = id,
+            name = name.trim(),
+            songIds = emptyList(),
+            color = color,
+            defaultTextZoom = defaultTextZoom,
+            defaultImageZoom = defaultImageZoom,
+            defaultScrollSpeed = defaultScrollSpeed,
+        )
         context.dataStore.edit { prefs ->
             val atuais = prefs[keyRepertoires].orEmpty()
             prefs[keyRepertoires] = atuais + RepertoireCodec.encode(rep)
@@ -209,10 +223,26 @@ class UserPreferences(private val context: Context) {
         return id
     }
 
-    suspend fun renameRepertoire(id: String, novoNome: String) {
+    // Renomeia, troca cor, ou ambos. Parâmetros null mantêm o valor atual.
+    suspend fun renameRepertoire(id: String, novoNome: String, color: String? = null) {
         val nome = novoNome.trim()
         if (nome.isBlank()) return
-        atualizaRepertoire(id) { it.copy(name = nome) }
+        atualizaRepertoire(id) { it.copy(name = nome, color = color ?: it.color) }
+    }
+
+    suspend fun setRepertoireDefaults(
+        id: String,
+        textZoom: Int? = null,
+        imageZoom: Float? = null,
+        scrollSpeed: Int? = null,
+    ) {
+        atualizaRepertoire(id) {
+            it.copy(
+                defaultTextZoom = textZoom ?: it.defaultTextZoom,
+                defaultImageZoom = imageZoom ?: it.defaultImageZoom,
+                defaultScrollSpeed = scrollSpeed ?: it.defaultScrollSpeed,
+            )
+        }
     }
 
     suspend fun deleteRepertoire(id: String) {

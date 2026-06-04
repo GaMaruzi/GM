@@ -9,17 +9,26 @@ class RepertoireCodecTest {
     private val SEP = ""
 
     @Test
-    fun `roundtrip vazio preserva id e nome`() {
-        val rep = Repertoire("abc-uuid", "Show de domingo", emptyList())
+    fun `roundtrip v2 vazio preserva id, nome e defaults`() {
+        val rep = Repertoire(
+            id = "abc-uuid",
+            name = "Show de domingo",
+            songIds = emptyList(),
+            color = "blue",
+            defaultTextZoom = 22,
+            defaultImageZoom = 1.5f,
+            defaultScrollSpeed = 30,
+        )
         assertEquals(rep, RepertoireCodec.decode(RepertoireCodec.encode(rep)))
     }
 
     @Test
-    fun `roundtrip com musicas preserva ordem`() {
+    fun `roundtrip com musicas preserva ordem e metadata`() {
         val rep = Repertoire(
             id = "abc",
             name = "Acústico",
             songIds = listOf("content://a", "content://b", "content://c"),
+            color = "purple",
         )
         assertEquals(rep, RepertoireCodec.decode(RepertoireCodec.encode(rep)))
     }
@@ -28,6 +37,35 @@ class RepertoireCodecTest {
     fun `nome com acentos e pipes sobrevive`() {
         val rep = Repertoire("x", "Show: João | É · Tchau", listOf("content://x"))
         assertEquals(rep, RepertoireCodec.decode(RepertoireCodec.encode(rep)))
+    }
+
+    @Test
+    fun `decode v1 legado sem metadata assume defaults`() {
+        // Repertórios criados antes da v1.2.0 não tinham bloco de metadata
+        // (parts[2..n] eram todos songIds). O decoder reconhece pela ausência
+        // do prefixo '$' e preenche os defaults.
+        val rawV1 = "abc" + SEP + "Show" + SEP + "content://a" + SEP + "content://b"
+        val rep = RepertoireCodec.decode(rawV1)
+        val esperado = Repertoire(
+            id = "abc",
+            name = "Show",
+            songIds = listOf("content://a", "content://b"),
+            color = "green",
+            defaultTextZoom = 18,
+            defaultImageZoom = 1.0f,
+            defaultScrollSpeed = 0,
+        )
+        assertEquals(esperado, rep)
+    }
+
+    @Test
+    fun `decode v1 vazio sem songs`() {
+        val rawV1 = "abc" + SEP + "Show"
+        val rep = RepertoireCodec.decode(rawV1)
+        assertEquals(
+            Repertoire(id = "abc", name = "Show", songIds = emptyList()),
+            rep,
+        )
     }
 
     @Test
@@ -40,6 +78,16 @@ class RepertoireCodecTest {
     fun `decode id ou nome em branco devolve null`() {
         assertNull(RepertoireCodec.decode("idVazio" + SEP))
         assertNull(RepertoireCodec.decode(SEP + "Nome"))
+    }
+
+    @Test
+    fun `decode metadata com chave desconhecida ignora e mantem defaults`() {
+        val raw = "id" + SEP + "Show" + SEP + "$" + "color:red,inventado:42" +
+            SEP + "content://x"
+        val rep = RepertoireCodec.decode(raw)
+        assertEquals("red", rep?.color)
+        assertEquals(18, rep?.defaultTextZoom)
+        assertEquals(listOf("content://x"), rep?.songIds)
     }
 
     @Test

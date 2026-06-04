@@ -198,16 +198,40 @@ class AppState(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { prefs.saveScrollOffset(songId, offset) }
     }
 
-    fun createRepertoire(name: String, onCreated: (String) -> Unit = {}) {
+    fun createRepertoire(
+        name: String,
+        color: String = "green",
+        defaultTextZoom: Int = 18,
+        defaultImageZoom: Float = 1.0f,
+        defaultScrollSpeed: Int = 0,
+        onCreated: (String) -> Unit = {},
+    ) {
         if (name.isBlank()) return
         viewModelScope.launch {
-            val id = prefs.addRepertoire(name)
+            val id = prefs.addRepertoire(
+                name = name,
+                color = color,
+                defaultTextZoom = defaultTextZoom,
+                defaultImageZoom = defaultImageZoom,
+                defaultScrollSpeed = defaultScrollSpeed,
+            )
             onCreated(id)
         }
     }
 
-    fun renameRepertoire(id: String, novoNome: String) {
-        viewModelScope.launch { prefs.renameRepertoire(id, novoNome) }
+    fun renameRepertoire(id: String, novoNome: String, color: String? = null) {
+        viewModelScope.launch { prefs.renameRepertoire(id, novoNome, color) }
+    }
+
+    fun setRepertoireDefaults(
+        id: String,
+        textZoom: Int? = null,
+        imageZoom: Float? = null,
+        scrollSpeed: Int? = null,
+    ) {
+        viewModelScope.launch {
+            prefs.setRepertoireDefaults(id, textZoom, imageZoom, scrollSpeed)
+        }
     }
 
     fun deleteRepertoire(id: String) {
