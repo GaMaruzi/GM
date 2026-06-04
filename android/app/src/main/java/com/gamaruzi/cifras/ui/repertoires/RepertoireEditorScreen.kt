@@ -27,14 +27,12 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FabPosition
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -121,37 +119,41 @@ fun RepertoireEditorScreen(
             )
         },
         bottomBar = {
-            BottomAppBar(
-                actions = {
+            // Barra com dois botões retangulares lado a lado, similar aos
+            // CTAs da EmptyScreen. "Ir ao palco" só aparece quando há cifras
+            // — sem play em estado vazio.
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
                     OutlinedButton(
                         onClick = onAddSongs,
-                        modifier = Modifier.padding(start = 16.dp),
+                        modifier = Modifier.weight(1f).heightIn(min = 52.dp),
                     ) {
                         Icon(Icons.Filled.Add, contentDescription = null)
                         Spacer(Modifier.size(8.dp))
                         Text("Adicionar cifras")
                     }
-                },
-                floatingActionButton = {
-                    FloatingActionButton(
-                        onClick = onStartStage,
-                        containerColor = if (rep.songIds.isEmpty())
-                            MaterialTheme.colorScheme.surfaceContainerHigh
-                        else MaterialTheme.colorScheme.primary,
-                        contentColor = if (rep.songIds.isEmpty())
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        else MaterialTheme.colorScheme.onPrimary,
-                    ) {
-                        Icon(
-                            Icons.Filled.PlayCircle,
-                            contentDescription = "Iniciar palco",
-                            modifier = Modifier.size(28.dp),
-                        )
+                    if (rep.songIds.isNotEmpty()) {
+                        Button(
+                            onClick = onStartStage,
+                            modifier = Modifier.weight(1f).heightIn(min = 52.dp),
+                        ) {
+                            Icon(Icons.Filled.Mic, contentDescription = null)
+                            Spacer(Modifier.size(8.dp))
+                            Text("Ir ao palco")
+                        }
                     }
-                },
-            )
+                }
+            }
         },
-        floatingActionButtonPosition = FabPosition.End,
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             if (itensRep.isEmpty()) {

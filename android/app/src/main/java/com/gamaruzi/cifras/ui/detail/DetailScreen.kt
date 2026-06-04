@@ -32,9 +32,9 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
@@ -280,9 +280,8 @@ fun DetailScreen(
             }
         }
 
-        // Botão "Tocar no palco" centralizado, sobreposto ao conteúdo. Usa
-        // FilledTonalButton (translúcido por natureza) em vez de FAB para o
-        // visual mais discreto pedido.
+        // Botão "Ir ao palco" centralizado, sobreposto ao conteúdo. Mesmo
+        // ícone (Mic) usado no RepertoireEditor pra consistência visual.
         FilledTonalButton(
             onClick = onPlayStage,
             shape = RoundedCornerShape(28.dp),
@@ -291,12 +290,12 @@ fun DetailScreen(
                 .padding(bottom = 24.dp),
         ) {
             Icon(
-                Icons.Filled.PlayArrow,
+                Icons.Filled.Mic,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
             )
             Spacer(Modifier.size(8.dp))
-            Text("Tocar no palco", fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text("Ir ao palco", fontSize = 15.sp, fontWeight = FontWeight.Medium)
         }
         }
     }
@@ -560,28 +559,33 @@ private fun TextContent(
 @Composable
 private fun ImageContent(song: Song, scrollState: ScrollState) {
     var scale by remember(song.id) { mutableFloatStateOf(1f) }
+    // Centralizada vertical+horizontalmente em 1x. Quando amplia, o
+    // verticalScroll exterior permite percorrer a imagem.
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
             .padding(horizontal = 12.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // ContentScale.Fit + altura natural deixa a imagem aparecer inteira;
-        // pinch (2 dedos) amplia a partir de 1.0x. Drag de 1 dedo continua
-        // rolando o Column verticalmente.
-        AsyncImage(
-            model = Uri.parse(song.id),
-            contentDescription = song.title,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier
-                .fillMaxWidth()
-                .pointerInput(song.id) {
-                    detectTransformGestures { _, _, zoom, _ ->
-                        scale = (scale * zoom).coerceIn(1f, 4f)
+        Box(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = Uri.parse(song.id),
+                contentDescription = song.title,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .pointerInput(song.id) {
+                        detectTransformGestures { _, _, zoom, _ ->
+                            scale = (scale * zoom).coerceIn(1f, 4f)
+                        }
                     }
-                }
-                .graphicsLayer(scaleX = scale, scaleY = scale),
-        )
+                    .graphicsLayer(scaleX = scale, scaleY = scale),
+            )
+        }
         Spacer(Modifier.height(12.dp))
         Text(
             text = song.file,

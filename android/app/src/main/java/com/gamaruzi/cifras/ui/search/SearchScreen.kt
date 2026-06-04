@@ -35,9 +35,9 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Settings
@@ -192,13 +192,13 @@ fun SearchScreen(
                 contentColor = MaterialTheme.colorScheme.onPrimary,
             ) {
                 Icon(
-                    Icons.Filled.PlayCircle,
-                    contentDescription = "Tocar no palco",
-                    modifier = Modifier.size(28.dp),
+                    Icons.Filled.Mic,
+                    contentDescription = "Ir ao palco",
+                    modifier = Modifier.size(26.dp),
                 )
             }
         },
-        floatingActionButtonPosition = FabPosition.Center,
+        floatingActionButtonPosition = FabPosition.End,
     ) { padding ->
         Column(
             modifier = Modifier

@@ -24,6 +24,7 @@ import com.gamaruzi.cifras.ui.repertoires.RepertoiresScreen
 import com.gamaruzi.cifras.ui.search.SearchScreen
 import com.gamaruzi.cifras.ui.search.juntarNomeEArtista
 import com.gamaruzi.cifras.ui.settings.SettingsScreen
+import com.gamaruzi.cifras.ui.stage.StageDefaults
 import com.gamaruzi.cifras.ui.stage.StageScreen
 
 object Rotas {
@@ -256,11 +257,25 @@ fun AppNavHost(appState: AppState = viewModel()) {
                     else -> emptyList()
                 }
             }
+            val rep = repId?.let { appState.repertoire(it) }
+            val defaults = rep?.let {
+                StageDefaults(
+                    repId = it.id,
+                    textZoom = it.defaultTextZoom,
+                    imageZoom = it.defaultImageZoom,
+                    scrollSpeed = it.defaultScrollSpeed,
+                )
+            }
             val speeds by appState.speeds.collectAsStateWithLifecycle()
             StageScreen(
                 musicas = musicas,
                 speeds = speeds,
+                repertoireDefaults = defaults,
                 onBack = { navController.popBackStack() },
+                onPersistRepertoireDefaults = { rid, tx, img, sp ->
+                    appState.setRepertoireDefaults(rid, tx, img, sp)
+                },
+                onSpeedChange = { songId, px -> appState.setSpeed(songId, px) },
             )
         }
 

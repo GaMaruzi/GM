@@ -12,8 +12,11 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -26,6 +29,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,6 +48,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,32 +77,52 @@ import com.gamaruzi.cifras.data.PdfPageRenderer
 import com.gamaruzi.cifras.data.Song
 import com.gamaruzi.cifras.data.SongFormat
 import com.gamaruzi.cifras.ui.common.findActivity
+import kotlin.math.abs
 import kotlinx.coroutines.delay
 
 // Paleta fixa do palco (não depende do tema do app — preto OLED + verde Spotify).
-// Spec: docs/design/v2-verde-icone-paleta/README.md
 private val StageBg = Color(0xFF000000)
 private val StageFg = Color(0xFFF2F2F2)
 private val StageFgDim = Color(0xFF8A8A8A)
 private val StageAccent = Color(0xFF1ED760)
 
-// Stepper de fonte segue spec: 28sp padrão, ajustável 18-44sp.
+// Stepper de fonte: range 18–44sp; default vem do repertório (ou 18sp).
 private const val FONT_MIN = 18
 private const val FONT_MAX = 44
-private const val FONT_DEFAULT = 28
+private const val FONT_DEFAULT = 18
 
-// Quanto tempo o chrome (TopBar + BottomBar + dots) fica visível antes de
-// desaparecer automaticamente. Spec do roadmap.
+// Stepper de velocidade (px/s): mesmas constantes do RepertoireEditorScreen.
+private const val SPEED_MIN = 0
+private const val SPEED_MAX = 120
+private const val SPEED_STEP = 10
+
 private const val CHROME_AUTO_HIDE_MS = 3200L
 
-// Overlay com "1× próxima · 2× anterior". Some sozinho um pouco depois.
-private const val DICA_INICIAL_MS = 5000L
+// Dica de gestos no rodapé. Reduzida em v1.2.0 — antes era 5s no centro
+// e cobria a primeira música.
+private const val DICA_INICIAL_MS = 2200L
+
+// Distância em pixels que o usuário precisa arrastar antes do gesto contar
+// como swipe deliberado (não confundir com micro-movimento de um tap).
+private const val SWIPE_THRESHOLD_PX = 80f
+
+// Defaults herdados de um repertório quando o palco é aberto a partir dele.
+// Quando null (cifra única), nenhum default é persistido depois.
+data class StageDefaults(
+    val repId: String,
+    val textZoom: Int,
+    val imageZoom: Float,
+    val scrollSpeed: Int,
+)
 
 @Composable
 fun StageScreen(
     musicas: List<Song>,
     speeds: Map<String, Int>,
+    repertoireDefaults: StageDefaults? = null,
     onBack: () -> Unit,
+    onPersistRepertoireDefaults: (repId: String, textZoom: Int?, imageZoom: Float?, scrollSpeed: Int?) -> Unit = { _, _, _, _ -> },
+    onSpeedChange: (songId: String, pxPerSec: Int) -> Unit = { _, _ -> },
 ) {
     SetupStageWindow()
 
@@ -105,7 +130,14 @@ fun StageScreen(
         if (musicas.isEmpty()) {
             StageVazio(onBack = onBack)
         } else {
-            StagePalco(musicas = musicas, speeds = speeds, onBack = onBack)
+            StagePalco(
+                musicas = musicas,
+                speeds = speeds,
+                repertoireDefaults = repertoireDefaults,
+                onBack = onBack,
+                onPersistRepertoireDefaults = onPersistRepertoireDefaults,
+                onSpeedChange = onSpeedChange,
+            )
         }
     }
 }
@@ -114,52 +146,53 @@ fun StageScreen(
 private fun StagePalco(
     musicas: List<Song>,
     speeds: Map<String, Int>,
+    repertoireDefaults: StageDefaults?,
     onBack: () -> Unit,
+    onPersistRepertoireDefaults: (repId: String, textZoom: Int?, imageZoom: Float?, scrollSpeed: Int?) -> Unit,
+    onSpeedChange: (songId: String, pxPerSec: Int) -> Unit,
 ) {
     var indice by remember { mutableIntStateOf(0) }
-    var fontSize by remember { mutableIntStateOf(FONT_DEFAULT) }
+    // Inicia com o default do repertório (ou FONT_DEFAULT pra cifra única).
+    // O usuário pode ajustar no palco e a alteração é persistida.
+    var fontSize by remember {
+        mutableIntStateOf(repertoireDefaults?.textZoom ?: FONT_DEFAULT)
+    }
+    var imageScale by remember(repertoireDefaults?.repId) {
+        mutableFloatStateOf(repertoireDefaults?.imageZoom ?: 1f)
+    }
+    // Velocidade atual aplicada à música corrente. Quando vem do repertório
+    // e a cifra não tem speed próprio gravado, usa o default do repertório.
+    val songAtual = musicas[indice.coerceIn(0, musicas.size - 1)]
+    val velocidade = speeds[songAtual.id] ?: repertoireDefaults?.scrollSpeed ?: 0
+    val ehTexto = songAtual.format == SongFormat.TEXT
+
     var chromeVisivel by remember { mutableStateOf(true) }
     var dicaVisivel by remember { mutableStateOf(true) }
 
-    val songAtual = musicas[indice.coerceIn(0, musicas.size - 1)]
-    val velocidade = speeds[songAtual.id] ?: 0
-    val ehTexto = songAtual.format == SongFormat.TEXT
-
-    // Zoom para IMAGE/PDF — local da música atual. Reseta ao trocar de música.
-    // Reusa A−/A+ no chrome (PR 15): em vez de fonte (que só faz sentido em
-    // TEXT), eles ajustam zoom quando a cifra é imagem ou PDF.
-    var imageScale by remember(songAtual.id) { mutableFloatStateOf(1f) }
-
-    // Reseta scroll ao trocar de música. ScrollState é compartilhado entre
-    // os 3 renderizadores para o auto-scroll funcionar uniformemente.
     val scrollState = rememberScrollState()
     LaunchedEffect(songAtual.id) {
         scrollState.scrollTo(0)
-        // Cada nova música re-mostra o chrome por 3.2s — dá chance pro
-        // usuário ajustar fonte ou sair sem precisar de um gesto especial.
-        chromeVisivel = true
+        // Não mostramos mais chrome ao trocar de música — o usuário pediu
+        // fluidez. Chrome só aparece com swipe vertical deliberado.
+        chromeVisivel = false
     }
 
-    // Auto-hide do chrome: depois de CHROME_AUTO_HIDE_MS sem mudança, esconde.
+    // Auto-hide do chrome.
     LaunchedEffect(chromeVisivel, songAtual.id) {
         if (!chromeVisivel) return@LaunchedEffect
         delay(CHROME_AUTO_HIDE_MS)
         chromeVisivel = false
     }
 
-    // Auto-hide da dica inicial.
     LaunchedEffect(Unit) {
         delay(DICA_INICIAL_MS)
         dicaVisivel = false
     }
 
-    // Auto-scroll: rola `velocidade` pixels por segundo, linear, até o fim.
-    // Cancela e reinicia quando trocar de música ou velocidade.
+    // Auto-scroll: rola `velocidade` pixels por segundo. Cancela quando muda
+    // música ou velocidade. Continua mesmo durante chrome visível.
     LaunchedEffect(songAtual.id, velocidade, scrollState.maxValue) {
-        if (velocidade <= 0) return@LaunchedEffect
-        // Aguarda o conteúdo medir (maxValue > 0) — PDF e imagem podem
-        // levar alguns frames pra carregar.
-        if (scrollState.maxValue <= 0) return@LaunchedEffect
+        if (velocidade <= 0 || scrollState.maxValue <= 0) return@LaunchedEffect
         while (scrollState.value < scrollState.maxValue) {
             scrollState.animateScrollBy(
                 value = velocidade.toFloat(),
@@ -168,37 +201,79 @@ private fun StagePalco(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            // detectTapGestures não consome drag → scroll vertical e pinch
-            // (2 dedos, capturado pelo conteúdo IMG/PDF) seguem funcionando.
-            // Toque à esquerda da tela = anterior; à direita = próxima.
-            .pointerInput(musicas.size) {
-                detectTapGestures(
-                    onTap = { offset ->
-                        chromeVisivel = true
-                        if (offset.x < size.width / 2f) {
-                            if (indice > 0) indice--
-                        } else {
-                            if (indice < musicas.size - 1) indice++
-                        }
-                    },
-                )
-            },
-    ) {
-        // Conteúdo principal
+    // Para evitar recriar callbacks em cada recomposição quando os gesture
+    // detectors capturam o índice. O `by rememberUpdatedState` mantém os
+    // pointerInputs com o índice mais recente.
+    val indiceLatest by rememberUpdatedState(indice)
+    val musicasSizeLatest by rememberUpdatedState(musicas.size)
+
+    fun avancar() {
+        if (indiceLatest < musicasSizeLatest - 1) indice = indiceLatest + 1
+    }
+
+    fun voltar() {
+        if (indiceLatest > 0) indice = indiceLatest - 1
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        // Conteúdo principal. `userScrollEnabled = false` no verticalScroll
+        // libera o drag vertical pro gesto de mostrar chrome — o auto-scroll
+        // programático segue funcionando normalmente.
         when (songAtual.format) {
             SongFormat.TEXT -> StageText(songAtual, fontSize.sp, scrollState)
             SongFormat.IMAGE -> StageImage(songAtual, scrollState, imageScale) { z ->
                 imageScale = z
+                if (repertoireDefaults != null) {
+                    onPersistRepertoireDefaults(repertoireDefaults.repId, null, z, null)
+                }
             }
             SongFormat.PDF -> StagePdf(songAtual, scrollState, imageScale) { z ->
                 imageScale = z
+                if (repertoireDefaults != null) {
+                    onPersistRepertoireDefaults(repertoireDefaults.repId, null, z, null)
+                }
             }
         }
 
-        // Chrome (TopBar + BottomBar + dots) com fade
+        // Camada de gestos: tap = próxima; swipe horizontal direita = anterior;
+        // swipe vertical = mostrar chrome. Pinch é capturado no conteúdo via
+        // detectTransformGestures (IMG/PDF), independente desta camada.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { avancar() })
+                }
+                .pointerInput(Unit) {
+                    var totalX = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { totalX = 0f },
+                        onDragEnd = {
+                            if (totalX > SWIPE_THRESHOLD_PX) voltar()
+                            totalX = 0f
+                        },
+                        onDragCancel = { totalX = 0f },
+                        onHorizontalDrag = { _, dx -> totalX += dx },
+                    )
+                }
+                .pointerInput(Unit) {
+                    var totalY = 0f
+                    detectVerticalDragGestures(
+                        onDragStart = { totalY = 0f },
+                        onDragEnd = {
+                            if (abs(totalY) > SWIPE_THRESHOLD_PX) {
+                                chromeVisivel = true
+                            }
+                            totalY = 0f
+                        },
+                        onDragCancel = { totalY = 0f },
+                        onVerticalDrag = { _, dy -> totalY += dy },
+                    )
+                },
+        )
+
+        // Chrome (TopBar + BottomBar + dots).
         AnimatedVisibility(visible = chromeVisivel, enter = fadeIn(), exit = fadeOut()) {
             Box(modifier = Modifier.fillMaxSize()) {
                 StageTopBar(
@@ -212,28 +287,72 @@ private fun StagePalco(
                     indice = indice,
                     total = musicas.size,
                     ehTexto = ehTexto,
-                    podeMinus = if (ehTexto) fontSize > FONT_MIN else imageScale > 1f,
-                    podePlus = if (ehTexto) fontSize < FONT_MAX else imageScale < 4f,
-                    onMinus = {
+                    velocidade = velocidade,
+                    podeFontMinus = fontSize > FONT_MIN,
+                    podeFontPlus = fontSize < FONT_MAX,
+                    podeZoomMinus = imageScale > 1f,
+                    podeZoomPlus = imageScale < 4f,
+                    onFontMinus = {
                         chromeVisivel = true
-                        if (ehTexto) fontSize = (fontSize - 2).coerceAtLeast(FONT_MIN)
-                        else imageScale = (imageScale - 0.5f).coerceAtLeast(1f)
+                        val novo = (fontSize - 2).coerceAtLeast(FONT_MIN)
+                        fontSize = novo
+                        if (repertoireDefaults != null) {
+                            onPersistRepertoireDefaults(repertoireDefaults.repId, novo, null, null)
+                        }
                     },
-                    onPlus = {
+                    onFontPlus = {
                         chromeVisivel = true
-                        if (ehTexto) fontSize = (fontSize + 2).coerceAtMost(FONT_MAX)
-                        else imageScale = (imageScale + 0.5f).coerceAtMost(4f)
+                        val novo = (fontSize + 2).coerceAtMost(FONT_MAX)
+                        fontSize = novo
+                        if (repertoireDefaults != null) {
+                            onPersistRepertoireDefaults(repertoireDefaults.repId, novo, null, null)
+                        }
+                    },
+                    onZoomMinus = {
+                        chromeVisivel = true
+                        val novo = (imageScale - 0.5f).coerceAtLeast(1f)
+                        imageScale = novo
+                        if (repertoireDefaults != null) {
+                            onPersistRepertoireDefaults(repertoireDefaults.repId, null, novo, null)
+                        }
+                    },
+                    onZoomPlus = {
+                        chromeVisivel = true
+                        val novo = (imageScale + 0.5f).coerceAtMost(4f)
+                        imageScale = novo
+                        if (repertoireDefaults != null) {
+                            onPersistRepertoireDefaults(repertoireDefaults.repId, null, novo, null)
+                        }
+                    },
+                    onSpeedMinus = {
+                        chromeVisivel = true
+                        val novo = (velocidade - SPEED_STEP).coerceAtLeast(SPEED_MIN)
+                        onSpeedChange(songAtual.id, novo)
+                        if (repertoireDefaults != null) {
+                            onPersistRepertoireDefaults(repertoireDefaults.repId, null, null, novo)
+                        }
+                    },
+                    onSpeedPlus = {
+                        chromeVisivel = true
+                        val novo = (velocidade + SPEED_STEP).coerceAtMost(SPEED_MAX)
+                        onSpeedChange(songAtual.id, novo)
+                        if (repertoireDefaults != null) {
+                            onPersistRepertoireDefaults(repertoireDefaults.repId, null, null, novo)
+                        }
                     },
                 )
             }
         }
 
-        // Overlay de dica inicial
+        // Overlay de dica inicial, agora no rodapé, em fonte pequena, pra não
+        // cobrir a primeira música. Some sozinho após DICA_INICIAL_MS.
         AnimatedVisibility(
             visible = dicaVisivel,
             enter = fadeIn(),
             exit = fadeOut(),
-            modifier = Modifier.align(Alignment.Center),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 36.dp),
         ) {
             DicaInicial(onDismiss = { dicaVisivel = false })
         }
@@ -295,7 +414,7 @@ private fun StageTopBar(
                 maxLines = 1,
             )
             Text(
-                if (velocidade > 0) "${song.artist} · auto-scroll ${velocidade}px/s"
+                if (velocidade > 0) "${song.artist} · ${velocidade}px/s"
                 else song.artist,
                 color = StageFgDim,
                 fontSize = 11.sp,
@@ -316,33 +435,70 @@ private fun BoxScope.StageBottomBar(
     indice: Int,
     total: Int,
     ehTexto: Boolean,
-    podeMinus: Boolean,
-    podePlus: Boolean,
-    onMinus: () -> Unit,
-    onPlus: () -> Unit,
+    velocidade: Int,
+    podeFontMinus: Boolean,
+    podeFontPlus: Boolean,
+    podeZoomMinus: Boolean,
+    podeZoomPlus: Boolean,
+    onFontMinus: () -> Unit,
+    onFontPlus: () -> Unit,
+    onZoomMinus: () -> Unit,
+    onZoomPlus: () -> Unit,
+    onSpeedMinus: () -> Unit,
+    onSpeedPlus: () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .align(Alignment.BottomCenter)
             .fillMaxWidth()
             .background(StageBg.copy(alpha = 0.85f))
-            .padding(horizontal = 16.dp, vertical = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Dots de progresso do repertório
         DotsProgresso(indice = indice, total = total)
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(10.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // TEXT: A−/A+ controla fonte. IMAGE/PDF: ZoomOut/ZoomIn no conteúdo.
-            val labelMinus = if (ehTexto) "A−" else "−"
-            val labelPlus = if (ehTexto) "A+" else "+"
-            StageActionButton(label = labelMinus, enabled = podeMinus, onClick = onMinus)
-            Spacer(Modifier.size(12.dp))
-            StageActionButton(label = labelPlus, enabled = podePlus, onClick = onPlus)
+            // Zoom à esquerda (TEXT = fonte; IMG/PDF = scale).
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (ehTexto) {
+                    StageActionButton(label = "A−", enabled = podeFontMinus, onClick = onFontMinus)
+                    Spacer(Modifier.size(8.dp))
+                    StageActionButton(label = "A+", enabled = podeFontPlus, onClick = onFontPlus)
+                } else {
+                    StageActionButton(label = "−", enabled = podeZoomMinus, onClick = onZoomMinus)
+                    Spacer(Modifier.size(8.dp))
+                    StageActionButton(label = "+", enabled = podeZoomPlus, onClick = onZoomPlus)
+                }
+            }
+            // Velocidade à direita (sempre visível — auto-scroll vale pra
+            // TEXT, IMG e PDF). Display do valor entre os botões.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StageActionButton(
+                    label = "▼",
+                    enabled = velocidade > SPEED_MIN,
+                    onClick = onSpeedMinus,
+                )
+                Box(
+                    modifier = Modifier.padding(horizontal = 6.dp).wrapContentSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        if (velocidade == 0) "off" else "$velocidade",
+                        color = if (velocidade == 0) StageFgDim else StageAccent,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                StageActionButton(
+                    label = "▲",
+                    enabled = velocidade < SPEED_MAX,
+                    onClick = onSpeedPlus,
+                )
+            }
         }
     }
 }
@@ -396,31 +552,25 @@ private fun StageActionButton(label: String, enabled: Boolean, onClick: () -> Un
 private fun DicaInicial(onDismiss: () -> Unit) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(18.dp))
-            .background(StageBg.copy(alpha = 0.85f))
+            .clip(RoundedCornerShape(14.dp))
+            .background(StageBg.copy(alpha = 0.8f))
             .clickable(onClick = onDismiss)
-            .padding(horizontal = 24.dp, vertical = 18.dp),
+            .padding(horizontal = 18.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                "Toque na metade direita → próxima",
+                "Toque → próxima · Arraste pra direita → anterior",
                 color = StageFg,
-                fontSize = 14.sp,
+                fontSize = 12.sp,
                 textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(2.dp))
             Text(
-                "Toque na metade esquerda → anterior",
-                color = StageFg,
-                fontSize = 14.sp,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Toque aqui pra fechar",
+                "Arraste pra cima/baixo → controles",
                 color = StageFgDim,
                 fontSize = 11.sp,
+                textAlign = TextAlign.Center,
             )
         }
     }
@@ -428,10 +578,13 @@ private fun DicaInicial(onDismiss: () -> Unit) {
 
 @Composable
 private fun StageText(song: Song, fontSize: TextUnit, scrollState: ScrollState) {
+    // userScrollEnabled = false libera o drag vertical pra mostrar chrome.
+    // O auto-scroll programático segue funcionando porque escreve direto no
+    // scrollState.
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .verticalScroll(scrollState, enabled = false)
             .padding(horizontal = 24.dp, vertical = 96.dp),
     ) {
         song.sections.forEachIndexed { index, section ->
@@ -479,18 +632,21 @@ private fun StageImage(
     scale: Float,
     onScaleChange: (Float) -> Unit,
 ) {
-    Column(
+    // Centralizada vertical e horizontalmente: cabe na viewport em 1x. Quando
+    // ampliada via pinch, o verticalScroll programático permite percorrer a
+    // imagem inteira via auto-scroll/chrome — pan manual é via pinch+drag.
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(horizontal = 8.dp, vertical = 80.dp),
+            .verticalScroll(scrollState, enabled = false),
+        contentAlignment = Alignment.Center,
     ) {
         AsyncImage(
             model = Uri.parse(song.id),
             contentDescription = song.title,
             contentScale = ContentScale.Fit,
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .pointerInput(song.id) {
                     detectTransformGestures { _, _, zoom, _ ->
                         onScaleChange((scale * zoom).coerceIn(1f, 4f))
@@ -531,9 +687,10 @@ private fun StagePdf(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState)
+                .verticalScroll(scrollState, enabled = false)
                 .padding(horizontal = 8.dp, vertical = 80.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             rendered.forEach { bmp ->
                 Image(
@@ -564,8 +721,6 @@ private fun SetupStageWindow() {
         val window = activity?.window
         val controller = window?.let { WindowCompat.getInsetsController(it, view) }
         controller?.hide(WindowInsetsCompat.Type.systemBars())
-        // BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE — o usuário pode arrastar do
-        // topo/baixo pra ver as bars temporariamente, sem sair do imersivo.
         controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         view.keepScreenOn = true
         onDispose {
@@ -574,4 +729,3 @@ private fun SetupStageWindow() {
         }
     }
 }
-
