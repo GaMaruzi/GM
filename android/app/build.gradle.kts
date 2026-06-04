@@ -12,8 +12,8 @@ android {
         applicationId = "com.gamaruzi.cifras"
         minSdk = 28        // Android 9 — cobre 95%+ dos devices em uso
         targetSdk = 35     // Android 15 — compatível com HyperOS do Xiaomi 14
-        versionCode = 3
-        versionName = "1.1.0"
+        versionCode = 4
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
