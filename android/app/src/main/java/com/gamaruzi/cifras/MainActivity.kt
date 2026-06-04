@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -41,11 +42,11 @@ import com.gamaruzi.cifras.ui.navigation.AppNavHost
 import com.gamaruzi.cifras.ui.theme.CifrasTheme
 import kotlinx.coroutines.delay
 
-// Tempo total mínimo da splash. A janela nativa fica só com o fundo verde;
-// o logo + slogan vêm pelo overlay Compose com fadeIn/fadeOut. 1600ms é
-// confortável pra ler o slogan sem atrasar quem só quer abrir o app.
+// Tempo total mínimo da splash. A janela nativa exibe o logo + fundo verde
+// desde o primeiro frame; o overlay Compose entra instantâneo por cima
+// pra adicionar o slogan. Só a saída (fadeOut) é animada — a entrada não
+// pode ter delay senão o usuário percebe o slogan "aparecendo no fim".
 private const val SPLASH_TOTAL_MS = 1600L
-private const val OVERLAY_FADE_IN_MS = 280
 private const val OVERLAY_FADE_OUT_MS = 320
 
 class MainActivity : ComponentActivity() {
@@ -87,13 +88,13 @@ class MainActivity : ComponentActivity() {
                     AppNavHost(appState = appState)
                     AnimatedVisibility(
                         visible = showOverlay,
-                        // FadeIn cobre o gap entre a splash nativa (só fundo
-                        // verde) e o overlay Compose (verde + logo + slogan).
-                        // Os dois compartilham o mesmo verde, então o fade
-                        // só aparece nos elementos visuais (logo + texto).
-                        enter = androidx.compose.animation.fadeIn(
-                            animationSpec = tween(durationMillis = OVERLAY_FADE_IN_MS),
-                        ),
+                        // Entrada instantânea: o logo já está visível na
+                        // splash nativa (windowSplashScreenAnimatedIcon)
+                        // desde o primeiro frame; o overlay Compose só
+                        // *adiciona* o slogan. Sem fadeIn, o usuário não
+                        // percebe troca de camada — só vê o slogan
+                        // estabilizar junto com o logo.
+                        enter = EnterTransition.None,
                         exit = fadeOut(animationSpec = tween(durationMillis = OVERLAY_FADE_OUT_MS)),
                     ) {
                         SplashOverlay()

@@ -16,7 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Stadium
+import androidx.compose.material.icons.filled.Festival
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -74,7 +74,7 @@ fun StageIntroScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    Icons.Filled.Stadium,
+                    Icons.Filled.Festival,
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(56.dp),

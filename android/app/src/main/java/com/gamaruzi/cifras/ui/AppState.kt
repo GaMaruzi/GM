@@ -70,6 +70,9 @@ class AppState(application: Application) : AndroidViewModel(application) {
     val cifraSemis: StateFlow<Map<String, Int>> = prefs.cifraSemis
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
+    val cifraZoom: StateFlow<Map<String, Int>> = prefs.cifraZoom
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
     val folders: StateFlow<List<Folder>> = prefs.folders
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -269,6 +272,10 @@ class AppState(application: Application) : AndroidViewModel(application) {
 
     fun setCifraSemis(songId: String, semis: Int) {
         viewModelScope.launch { prefs.setCifraSemis(songId, semis) }
+    }
+
+    fun setCifraZoom(songId: String, valor: Int) {
+        viewModelScope.launch { prefs.setCifraZoom(songId, valor) }
     }
 
     fun createFolder(name: String, color: String = "green") {

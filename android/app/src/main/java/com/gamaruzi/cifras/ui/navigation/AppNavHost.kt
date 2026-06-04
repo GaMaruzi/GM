@@ -309,10 +309,12 @@ fun AppNavHost(appState: AppState = viewModel()) {
             }
             val speeds by appState.speeds.collectAsStateWithLifecycle()
             val semisAll by appState.cifraSemis.collectAsStateWithLifecycle()
+            val zoomAll by appState.cifraZoom.collectAsStateWithLifecycle()
             StageScreen(
                 musicas = musicas,
                 speeds = speeds,
                 cifraSemis = semisAll,
+                cifraZoom = zoomAll,
                 repertoireDefaults = defaults,
                 onBack = { navController.popBackStack() },
                 onPersistRepertoireDefaults = { rid, tx, img, sp ->
@@ -320,6 +322,12 @@ fun AppNavHost(appState: AppState = viewModel()) {
                 },
                 onSpeedChange = { songId, px -> appState.setSpeed(songId, px) },
                 onSemisChange = { songId, s -> appState.setCifraSemis(songId, s) },
+                onZoomChange = { songId, v -> appState.setCifraZoom(songId, v) },
+                onShowEnded = {
+                    // Fim de repertório: volta direto pra lista de repertórios
+                    // (Editor já foi popado quando o intro saiu do back stack).
+                    navController.popBackStack(Rotas.REPERTOIRES, inclusive = false)
+                },
             )
         }
 

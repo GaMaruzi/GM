@@ -35,6 +35,10 @@ class UserPreferences(private val context: Context) {
     // a estrutura é Map<URI, Int>. Valores negativos descem o tom; 0 ou
     // ausente = tom original.
     private val keyCifraSemis = stringPreferencesKey("cifra_semis_v1")
+    // Zoom por cifra. TXT = tamanho da fonte em sp (16..44); IMG/PDF =
+    // scale × 100 (100 = 1.0x, 200 = 2.0x). Reusa ScrollCodec — a
+    // interpretação fica no consumidor por formato.
+    private val keyCifraZoom = stringPreferencesKey("cifra_zoom_v1")
 
     val library: Flow<List<LibraryEntry>> = context.dataStore.data.map { prefs ->
         prefs[keyLibrary]
@@ -74,6 +78,11 @@ class UserPreferences(private val context: Context) {
     // Transposição por cifra. Valores em semitons (-11..+11 em uso típico).
     val cifraSemis: Flow<Map<String, Int>> = context.dataStore.data.map { prefs ->
         ScrollCodec.decode(prefs[keyCifraSemis].orEmpty())
+    }
+
+    // Zoom por cifra (ver keyCifraZoom).
+    val cifraZoom: Flow<Map<String, Int>> = context.dataStore.data.map { prefs ->
+        ScrollCodec.decode(prefs[keyCifraZoom].orEmpty())
     }
 
     // Pastas criadas pelo usuário. Ordenadas pelo nome em lowercase para a UI
@@ -153,6 +162,7 @@ class UserPreferences(private val context: Context) {
             prefs.remove(keySetlistMigrated)
             prefs.remove(keySortModes)
             prefs.remove(keyCifraSemis)
+            prefs.remove(keyCifraZoom)
         }
     }
 
@@ -383,6 +393,16 @@ class UserPreferences(private val context: Context) {
             val mapa = ScrollCodec.decode(prefs[keyCifraSemis].orEmpty()).toMutableMap()
             if (semis == 0) mapa.remove(songId) else mapa[songId] = semis
             prefs[keyCifraSemis] = ScrollCodec.encode(mapa)
+        }
+    }
+
+    // Persiste zoom por cifra. Valor 0 ou padrão (TXT=18, IMG/PDF=100)
+    // remove a entrada — o consumidor cai no default do repertório.
+    suspend fun setCifraZoom(songId: String, valor: Int) {
+        context.dataStore.edit { prefs ->
+            val mapa = ScrollCodec.decode(prefs[keyCifraZoom].orEmpty()).toMutableMap()
+            if (valor <= 0) mapa.remove(songId) else mapa[songId] = valor
+            prefs[keyCifraZoom] = ScrollCodec.encode(mapa)
         }
     }
 

@@ -34,7 +34,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Stadium
+import androidx.compose.material.icons.filled.Festival
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Refresh
@@ -336,7 +336,7 @@ fun DetailScreen(
                 .padding(bottom = 24.dp),
         ) {
             Icon(
-                Icons.Filled.Stadium,
+                Icons.Filled.Festival,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
             )

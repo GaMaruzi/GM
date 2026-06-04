@@ -15,7 +15,16 @@ import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.colorResource
+import androidx.compose.material.icons.filled.Festival
+import androidx.compose.foundation.clickable
+import com.gamaruzi.cifras.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -117,11 +126,14 @@ fun StageScreen(
     musicas: List<Song>,
     speeds: Map<String, Int>,
     cifraSemis: Map<String, Int> = emptyMap(),
+    cifraZoom: Map<String, Int> = emptyMap(),
     repertoireDefaults: StageDefaults? = null,
     onBack: () -> Unit,
     onPersistRepertoireDefaults: (repId: String, textZoom: Int?, imageZoom: Float?, scrollSpeed: Int?) -> Unit = { _, _, _, _ -> },
     onSpeedChange: (songId: String, pxPerSec: Int) -> Unit = { _, _ -> },
     onSemisChange: (songId: String, semis: Int) -> Unit = { _, _ -> },
+    onZoomChange: (songId: String, valor: Int) -> Unit = { _, _ -> },
+    onShowEnded: () -> Unit = onBack,
 ) {
     SetupStageWindow()
 
@@ -133,11 +145,14 @@ fun StageScreen(
                 musicas = musicas,
                 speeds = speeds,
                 cifraSemis = cifraSemis,
+                cifraZoom = cifraZoom,
                 repertoireDefaults = repertoireDefaults,
                 onBack = onBack,
                 onPersistRepertoireDefaults = onPersistRepertoireDefaults,
                 onSpeedChange = onSpeedChange,
                 onSemisChange = onSemisChange,
+                onZoomChange = onZoomChange,
+                onShowEnded = onShowEnded,
             )
         }
     }
@@ -148,20 +163,33 @@ private fun StagePalco(
     musicas: List<Song>,
     speeds: Map<String, Int>,
     cifraSemis: Map<String, Int>,
+    cifraZoom: Map<String, Int>,
     repertoireDefaults: StageDefaults?,
     onBack: () -> Unit,
     onPersistRepertoireDefaults: (repId: String, textZoom: Int?, imageZoom: Float?, scrollSpeed: Int?) -> Unit,
     onSpeedChange: (songId: String, pxPerSec: Int) -> Unit,
     onSemisChange: (songId: String, semis: Int) -> Unit,
+    onZoomChange: (songId: String, valor: Int) -> Unit,
+    onShowEnded: () -> Unit,
 ) {
     var indice by remember { mutableIntStateOf(0) }
-    // Inicia com o default do repertório (ou FONT_DEFAULT pra cifra única).
-    // O usuário pode ajustar no palco e a alteração é persistida.
-    var fontSize by remember {
-        mutableIntStateOf(repertoireDefaults?.textZoom ?: FONT_DEFAULT)
+    // fontSize/imageScale agora recalculados sempre que muda a música:
+    // a fallback chain é cifraZoom[songId] → repertoireDefaults → FONT_DEFAULT.
+    // Usar uma key composta no remember() força a re-leitura do mapa.
+    val songIdParaInit = musicas[indice.coerceIn(0, musicas.size - 1)].id
+    var fontSize by remember(songIdParaInit) {
+        mutableIntStateOf(
+            cifraZoom[songIdParaInit]
+                ?: repertoireDefaults?.textZoom
+                ?: FONT_DEFAULT
+        )
     }
-    var imageScale by remember(repertoireDefaults?.repId) {
-        mutableFloatStateOf(repertoireDefaults?.imageZoom ?: 1f)
+    var imageScale by remember(songIdParaInit) {
+        mutableFloatStateOf(
+            (cifraZoom[songIdParaInit]?.toFloat()
+                ?: ((repertoireDefaults?.imageZoom ?: 1f) * 100f))
+                / 100f
+        )
     }
     // Velocidade atual aplicada à música corrente. Quando vem do repertório
     // e a cifra não tem speed próprio gravado, usa o default do repertório.
@@ -206,20 +234,47 @@ private fun StagePalco(
     }
 
     // Para evitar recriar callbacks em cada recomposição quando os gesture
-    // detectors capturam o índice. O `by rememberUpdatedState` mantém os
-    // pointerInputs com o índice mais recente.
+    // detectors capturam o estado. O `by rememberUpdatedState` mantém os
+    // pointerInputs com o valor mais recente sem invalidar o pointerInput.
     val indiceLatest by rememberUpdatedState(indice)
     val musicasSizeLatest by rememberUpdatedState(musicas.size)
+    val chromeVisivelLatest by rememberUpdatedState(chromeVisivel)
+
+    var showAcabou by remember { mutableStateOf(false) }
+    val ehRepertorio = repertoireDefaults != null
 
     fun avancar() {
-        if (indiceLatest < musicasSizeLatest - 1) indice = indiceLatest + 1
+        if (indiceLatest < musicasSizeLatest - 1) {
+            indice = indiceLatest + 1
+        } else if (ehRepertorio) {
+            // Última música de um repertório → tela "Show acabou!".
+            // Em cifra única, mantém comportamento anterior (no-op).
+            showAcabou = true
+        }
     }
 
     fun voltar() {
         if (indiceLatest > 0) indice = indiceLatest - 1
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // Detecta scroll vertical no conteúdo (TXT/PDF que tem verticalScroll
+    // habilitado) e mostra o chrome em conjunto — sem consumir o scroll,
+    // então a página segue rolando enquanto o menu aparece.
+    val nestedScrollConn = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y != 0f) chromeVisivelSetter(true)
+                return Offset.Zero
+            }
+            // setter populado abaixo (chromeVisivel não está em escopo aqui).
+            var chromeVisivelSetter: (Boolean) -> Unit = {}
+        }
+    }
+    // Recria a referência do setter a cada recomposição pra capturar
+    // o `chromeVisivel` corrente.
+    nestedScrollConn.chromeVisivelSetter = { v -> chromeVisivel = v }
+
+    Box(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConn)) {
 
         // Conteúdo principal. `userScrollEnabled = false` no verticalScroll
         // libera o drag vertical pro gesto de mostrar chrome — o auto-scroll
@@ -241,22 +296,21 @@ private fun StagePalco(
         }
 
         // Camada de gestos:
-        // - Tap = próxima música
-        // - Double-tap = mostrar/esconder chrome
-        // - Swipe horizontal pra direita = música anterior
-        // Drag vertical é deixado pro verticalScroll do conteúdo (TEXT/PDF)
-        // — o usuário pode adiantar ou voltar a rolagem; o auto-scroll
-        // continua a partir de onde ele largou.
-        // Pinch é capturado no conteúdo via detectTransformGestures (IMG/PDF),
-        // independente desta camada.
+        // - Tap simples: se chrome aberto, fecha sem trocar música; senão,
+        //   próxima música (ou tela "Show acabou" na última de repertório).
+        // - Swipe horizontal pra direita = música anterior.
+        // - Swipe vertical em IMG (que não tem verticalScroll): mostra chrome.
+        //   Em TXT/PDF, o nestedScroll do conteúdo já avisa o estado quando
+        //   o usuário arrasta verticalmente.
+        // - Pinch (IMG/PDF) = zoom, via detectTransformGestures no conteúdo.
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(Unit) {
-                    detectTapGestures(
-                        onTap = { avancar() },
-                        onDoubleTap = { chromeVisivel = !chromeVisivel },
-                    )
+                    detectTapGestures(onTap = {
+                        if (chromeVisivelLatest) chromeVisivel = false
+                        else avancar()
+                    })
                 }
                 .pointerInput(Unit) {
                     var totalX = 0f
@@ -268,6 +322,21 @@ private fun StagePalco(
                         },
                         onDragCancel = { totalX = 0f },
                         onHorizontalDrag = { _, dx -> totalX += dx },
+                    )
+                }
+                .pointerInput(songAtual.format) {
+                    // Drag vertical apenas pra IMG (que tem scroll desativado
+                    // no conteúdo): mostra chrome se passou do threshold.
+                    if (songAtual.format != SongFormat.IMAGE) return@pointerInput
+                    var totalY = 0f
+                    detectVerticalDragGestures(
+                        onDragStart = { totalY = 0f },
+                        onDragEnd = {
+                            if (abs(totalY) > SWIPE_THRESHOLD_PX) chromeVisivel = true
+                            totalY = 0f
+                        },
+                        onDragCancel = { totalY = 0f },
+                        onVerticalDrag = { _, dy -> totalY += dy },
                     )
                 },
         )
@@ -310,33 +379,29 @@ private fun StagePalco(
                         chromeVisivel = true
                         val novo = (fontSize - 2).coerceAtLeast(FONT_MIN)
                         fontSize = novo
-                        if (repertoireDefaults != null) {
-                            onPersistRepertoireDefaults(repertoireDefaults.repId, novo, null, null)
-                        }
+                        // Fonte/zoom persistem POR CIFRA (cifra_zoom_v1), não
+                        // como default do repertório — cada cifra mantém o
+                        // próprio ajuste.
+                        onZoomChange(songAtual.id, novo)
                     },
                     onFontPlus = {
                         chromeVisivel = true
                         val novo = (fontSize + 2).coerceAtMost(FONT_MAX)
                         fontSize = novo
-                        if (repertoireDefaults != null) {
-                            onPersistRepertoireDefaults(repertoireDefaults.repId, novo, null, null)
-                        }
+                        onZoomChange(songAtual.id, novo)
                     },
                     onZoomMinus = {
                         chromeVisivel = true
                         val novo = (imageScale - 0.5f).coerceAtLeast(1f)
                         imageScale = novo
-                        if (repertoireDefaults != null) {
-                            onPersistRepertoireDefaults(repertoireDefaults.repId, null, novo, null)
-                        }
+                        // Scale × 100 = valor inteiro pro storage.
+                        onZoomChange(songAtual.id, (novo * 100f).toInt())
                     },
                     onZoomPlus = {
                         chromeVisivel = true
                         val novo = (imageScale + 0.5f).coerceAtMost(4f)
                         imageScale = novo
-                        if (repertoireDefaults != null) {
-                            onPersistRepertoireDefaults(repertoireDefaults.repId, null, novo, null)
-                        }
+                        onZoomChange(songAtual.id, (novo * 100f).toInt())
                     },
                     onSpeedMinus = {
                         chromeVisivel = true
@@ -358,6 +423,66 @@ private fun StagePalco(
             }
         }
 
+        // Overlay verde de "Show acabou" — entra com fade. Tap em qualquer
+        // lugar OU no X chama onShowEnded; back do sistema também funciona
+        // porque o palco continua "vivo" embaixo.
+        AnimatedVisibility(
+            visible = showAcabou,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            ShowAcabouOverlay(onClose = onShowEnded)
+        }
+    }
+}
+
+@Composable
+private fun ShowAcabouOverlay(onClose: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colorResource(id = R.color.splash_background))
+            .clickable(onClick = onClose),
+    ) {
+        IconButton(
+            onClick = onClose,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 4.dp, top = 40.dp)
+                .size(44.dp),
+        ) {
+            Icon(Icons.Filled.Close, contentDescription = "Sair do palco", tint = Color.White)
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 28.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                Icons.Filled.Festival,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(72.dp),
+            )
+            Spacer(Modifier.height(20.dp))
+            Text(
+                "Show acabou!",
+                color = Color.White,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Toque pra voltar pra Repertórios",
+                color = Color.White.copy(alpha = 0.85f),
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
