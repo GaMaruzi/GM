@@ -25,6 +25,7 @@ import com.gamaruzi.cifras.ui.search.SearchScreen
 import com.gamaruzi.cifras.ui.search.juntarNomeEArtista
 import com.gamaruzi.cifras.ui.settings.SettingsScreen
 import com.gamaruzi.cifras.ui.stage.StageDefaults
+import com.gamaruzi.cifras.ui.stage.StageIntroScreen
 import com.gamaruzi.cifras.ui.stage.StageScreen
 
 object Rotas {
@@ -37,6 +38,7 @@ object Rotas {
     // Stage aceita repId OU songId — params opcionais via query string.
     // Com repId: toca o repertório inteiro. Com songId: modo single-song.
     const val STAGE = "stage?rep={repId}&song={songId}"
+    const val STAGE_INTRO = "stage_intro?rep={repId}&song={songId}"
     const val SETTINGS = "settings"
 
     // Uri.encode codifica `/` `:` `%` e demais reservados. O Navigation Compose
@@ -47,6 +49,8 @@ object Rotas {
     fun addSongs(repId: String) = "repertoire/" + android.net.Uri.encode(repId) + "/add"
     fun stageRep(repId: String) = "stage?rep=" + android.net.Uri.encode(repId) + "&song="
     fun stageSong(songId: String) = "stage?rep=&song=" + android.net.Uri.encode(songId)
+    fun stageIntroRep(repId: String) = "stage_intro?rep=" + android.net.Uri.encode(repId) + "&song="
+    fun stageIntroSong(songId: String) = "stage_intro?rep=&song=" + android.net.Uri.encode(songId)
 }
 
 @Composable
@@ -162,6 +166,40 @@ fun AppNavHost(appState: AppState = viewModel()) {
         }
 
         composable(
+            route = Rotas.STAGE_INTRO,
+            arguments = listOf(
+                navArgument("repId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("songId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+        ) { entry ->
+            val repId = entry.arguments?.getString("repId")?.takeIf { it.isNotEmpty() }
+            val songIdArg = entry.arguments?.getString("songId")?.takeIf { it.isNotEmpty() }
+            StageIntroScreen(
+                onBack = { navController.popBackStack() },
+                onStart = {
+                    val rota = when {
+                        songIdArg != null -> Rotas.stageSong(songIdArg)
+                        repId != null -> Rotas.stageRep(repId)
+                        else -> return@StageIntroScreen
+                    }
+                    navController.navigate(rota) {
+                        // popUpTo intro inclusive: back do palco volta ao
+                        // editor/detail, não passa de novo pela intro.
+                        popUpTo(Rotas.STAGE_INTRO) { inclusive = true }
+                    }
+                },
+            )
+        }
+
+        composable(
             route = Rotas.DETAIL,
             arguments = listOf(navArgument("songId") { type = NavType.StringType }),
         ) { backStackEntry ->
@@ -191,7 +229,7 @@ fun AppNavHost(appState: AppState = viewModel()) {
                         navController.popBackStack()
                     },
                     onPlayStage = {
-                        navController.navigate(Rotas.stageSong(song.id))
+                        navController.navigate(Rotas.stageIntroSong(song.id))
                     },
                 )
             }
@@ -218,7 +256,7 @@ fun AppNavHost(appState: AppState = viewModel()) {
                 onBack = { navController.popBackStack() },
                 onAddSongs = { navController.navigate(Rotas.addSongs(repId)) },
                 onStartStage = {
-                    navController.navigate(Rotas.stageRep(repId))
+                    navController.navigate(Rotas.stageIntroRep(repId))
                 },
             )
         }

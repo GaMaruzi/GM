@@ -15,7 +15,6 @@ import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -100,10 +99,6 @@ private const val SPEED_STEP = 10
 
 private const val CHROME_AUTO_HIDE_MS = 3200L
 
-// Dica de gestos. Posição no terço inferior da tela (não no rodapé puro)
-// e tempo confortável de leitura — antes 2.2s era curto demais.
-private const val DICA_INICIAL_MS = 4500L
-
 // Distância em pixels que o usuário precisa arrastar antes do gesto contar
 // como swipe deliberado (não confundir com micro-movimento de um tap).
 private const val SWIPE_THRESHOLD_PX = 80f
@@ -181,14 +176,13 @@ private fun StagePalco(
         Theory.transposeKey(songAtual.key, semis, prefereFlat)
     }
 
-    var chromeVisivel by remember { mutableStateOf(true) }
-    var dicaVisivel by remember { mutableStateOf(true) }
+    var chromeVisivel by remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
     LaunchedEffect(songAtual.id) {
         scrollState.scrollTo(0)
         // Não mostramos mais chrome ao trocar de música — o usuário pediu
-        // fluidez. Chrome só aparece com swipe vertical deliberado.
+        // fluidez. Chrome só aparece com double-tap deliberado.
         chromeVisivel = false
     }
 
@@ -197,11 +191,6 @@ private fun StagePalco(
         if (!chromeVisivel) return@LaunchedEffect
         delay(CHROME_AUTO_HIDE_MS)
         chromeVisivel = false
-    }
-
-    LaunchedEffect(Unit) {
-        delay(DICA_INICIAL_MS)
-        dicaVisivel = false
     }
 
     // Auto-scroll: rola `velocidade` pixels por segundo. Cancela quando muda
@@ -251,14 +240,23 @@ private fun StagePalco(
             }
         }
 
-        // Camada de gestos: tap = próxima; swipe horizontal direita = anterior;
-        // swipe vertical = mostrar chrome. Pinch é capturado no conteúdo via
-        // detectTransformGestures (IMG/PDF), independente desta camada.
+        // Camada de gestos:
+        // - Tap = próxima música
+        // - Double-tap = mostrar/esconder chrome
+        // - Swipe horizontal pra direita = música anterior
+        // Drag vertical é deixado pro verticalScroll do conteúdo (TEXT/PDF)
+        // — o usuário pode adiantar ou voltar a rolagem; o auto-scroll
+        // continua a partir de onde ele largou.
+        // Pinch é capturado no conteúdo via detectTransformGestures (IMG/PDF),
+        // independente desta camada.
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(Unit) {
-                    detectTapGestures(onTap = { avancar() })
+                    detectTapGestures(
+                        onTap = { avancar() },
+                        onDoubleTap = { chromeVisivel = !chromeVisivel },
+                    )
                 }
                 .pointerInput(Unit) {
                     var totalX = 0f
@@ -270,20 +268,6 @@ private fun StagePalco(
                         },
                         onDragCancel = { totalX = 0f },
                         onHorizontalDrag = { _, dx -> totalX += dx },
-                    )
-                }
-                .pointerInput(Unit) {
-                    var totalY = 0f
-                    detectVerticalDragGestures(
-                        onDragStart = { totalY = 0f },
-                        onDragEnd = {
-                            if (abs(totalY) > SWIPE_THRESHOLD_PX) {
-                                chromeVisivel = true
-                            }
-                            totalY = 0f
-                        },
-                        onDragCancel = { totalY = 0f },
-                        onVerticalDrag = { _, dy -> totalY += dy },
                     )
                 },
         )
@@ -298,6 +282,7 @@ private fun StagePalco(
                     velocidade = velocidade,
                     tomExibicao = tomExibicao,
                     semis = semis,
+                    mostrarTom = ehTexto,
                     onBack = onBack,
                     onTomMinus = {
                         chromeVisivel = true
@@ -315,7 +300,7 @@ private fun StagePalco(
                 StageBottomBar(
                     indice = indice,
                     total = musicas.size,
-                    ehTexto = ehTexto,
+                    formato = songAtual.format,
                     velocidade = velocidade,
                     podeFontMinus = fontSize > FONT_MIN,
                     podeFontPlus = fontSize < FONT_MAX,
@@ -373,19 +358,6 @@ private fun StagePalco(
             }
         }
 
-        // Overlay de dica inicial, posicionado no terço inferior da tela
-        // (não no rodapé puro): visível sem competir com a primeira música.
-        val telaH = LocalConfiguration.current.screenHeightDp.dp
-        AnimatedVisibility(
-            visible = dicaVisivel,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = telaH * 2f / 3f),
-        ) {
-            DicaInicial(onDismiss = { dicaVisivel = false })
-        }
     }
 }
 
@@ -424,6 +396,7 @@ private fun StageTopBar(
     velocidade: Int,
     tomExibicao: String,
     semis: Int,
+    mostrarTom: Boolean,
     onBack: () -> Unit,
     onTomMinus: () -> Unit,
     onTomPlus: () -> Unit,
@@ -463,42 +436,44 @@ private fun StageTopBar(
                 fontWeight = FontWeight.Medium,
             )
         }
-        // Controle de tom: aparece sempre, com botão de reset visível só
-        // quando semis != 0 (slot fixo pra não mexer no layout).
-        Row(
-            modifier = Modifier.padding(start = 8.dp, top = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                "Tom",
-                color = StageFgDim,
-                fontSize = 11.sp,
-                modifier = Modifier.padding(end = 8.dp),
-            )
-            StageActionButton(label = "−", enabled = true, onClick = onTomMinus)
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 6.dp)
-                    .width(36.dp),
-                contentAlignment = Alignment.Center,
+        // Tom só pra cifras de texto — IMG/PDF não tem acordes detectáveis,
+        // o controle só polui a tela.
+        if (mostrarTom) {
+            Row(
+                modifier = Modifier.padding(start = 8.dp, top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    tomExibicao,
-                    color = StageAccent,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
+                    "Tom",
+                    color = StageFgDim,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(end = 8.dp),
                 )
-            }
-            StageActionButton(label = "+", enabled = true, onClick = onTomPlus)
-            Box(
-                modifier = Modifier
-                    .padding(start = 6.dp)
-                    .size(40.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (semis != 0) {
-                    StageActionButton(label = "↺", enabled = true, onClick = onTomReset)
+                StageActionButton(label = "−", enabled = true, onClick = onTomMinus)
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 6.dp)
+                        .width(36.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        tomExibicao,
+                        color = StageAccent,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+                StageActionButton(label = "+", enabled = true, onClick = onTomPlus)
+                Box(
+                    modifier = Modifier
+                        .padding(start = 6.dp)
+                        .size(40.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (semis != 0) {
+                        StageActionButton(label = "↺", enabled = true, onClick = onTomReset)
+                    }
                 }
             }
         }
@@ -509,7 +484,7 @@ private fun StageTopBar(
 private fun BoxScope.StageBottomBar(
     indice: Int,
     total: Int,
-    ehTexto: Boolean,
+    formato: SongFormat,
     velocidade: Int,
     podeFontMinus: Boolean,
     podeFontPlus: Boolean,
@@ -522,6 +497,8 @@ private fun BoxScope.StageBottomBar(
     onSpeedMinus: () -> Unit,
     onSpeedPlus: () -> Unit,
 ) {
+    val mostrarVelocidade = formato != SongFormat.IMAGE
+    val ehTexto = formato == SongFormat.TEXT
     Column(
         modifier = Modifier
             .align(Alignment.BottomCenter)
@@ -532,47 +509,58 @@ private fun BoxScope.StageBottomBar(
     ) {
         DotsProgresso(indice = indice, total = total)
         Spacer(Modifier.height(10.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Zoom à esquerda (TEXT = fonte; IMG/PDF = scale).
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (ehTexto) {
-                    StageActionButton(label = "A−", enabled = podeFontMinus, onClick = onFontMinus)
-                    Spacer(Modifier.size(8.dp))
-                    StageActionButton(label = "A+", enabled = podeFontPlus, onClick = onFontPlus)
-                } else {
-                    StageActionButton(label = "−", enabled = podeZoomMinus, onClick = onZoomMinus)
-                    Spacer(Modifier.size(8.dp))
-                    StageActionButton(label = "+", enabled = podeZoomPlus, onClick = onZoomPlus)
+        if (mostrarVelocidade) {
+            // TEXT/PDF: zoom à esquerda, velocidade à direita.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (ehTexto) {
+                        StageActionButton(label = "A−", enabled = podeFontMinus, onClick = onFontMinus)
+                        Spacer(Modifier.size(8.dp))
+                        StageActionButton(label = "A+", enabled = podeFontPlus, onClick = onFontPlus)
+                    } else {
+                        StageActionButton(label = "−", enabled = podeZoomMinus, onClick = onZoomMinus)
+                        Spacer(Modifier.size(8.dp))
+                        StageActionButton(label = "+", enabled = podeZoomPlus, onClick = onZoomPlus)
+                    }
                 }
-            }
-            // Velocidade à direita (sempre visível — auto-scroll vale pra
-            // TEXT, IMG e PDF). Display do valor entre os botões.
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                StageActionButton(
-                    label = "▼",
-                    enabled = velocidade > SPEED_MIN,
-                    onClick = onSpeedMinus,
-                )
-                Box(
-                    modifier = Modifier.padding(horizontal = 6.dp).wrapContentSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        if (velocidade == 0) "off" else "$velocidade",
-                        color = if (velocidade == 0) StageFgDim else StageAccent,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StageActionButton(
+                        label = "▼",
+                        enabled = velocidade > SPEED_MIN,
+                        onClick = onSpeedMinus,
+                    )
+                    Box(
+                        modifier = Modifier.padding(horizontal = 6.dp).wrapContentSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            if (velocidade == 0) "off" else "$velocidade",
+                            color = if (velocidade == 0) StageFgDim else StageAccent,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    StageActionButton(
+                        label = "▲",
+                        enabled = velocidade < SPEED_MAX,
+                        onClick = onSpeedPlus,
                     )
                 }
-                StageActionButton(
-                    label = "▲",
-                    enabled = velocidade < SPEED_MAX,
-                    onClick = onSpeedPlus,
-                )
+            }
+        } else {
+            // IMAGE: só zoom, centralizado.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                StageActionButton(label = "−", enabled = podeZoomMinus, onClick = onZoomMinus)
+                Spacer(Modifier.size(16.dp))
+                StageActionButton(label = "+", enabled = podeZoomPlus, onClick = onZoomPlus)
             }
         }
     }
@@ -624,51 +612,6 @@ private fun StageActionButton(label: String, enabled: Boolean, onClick: () -> Un
 }
 
 @Composable
-private fun DicaInicial(onDismiss: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(StageBg.copy(alpha = 0.88f))
-            .clickable(onClick = onDismiss)
-            .padding(horizontal = 22.dp, vertical = 16.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(horizontalAlignment = Alignment.Start) {
-            Text(
-                "Toque na tela → próxima música",
-                color = StageFg,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Start,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "Arraste pra direita → música anterior",
-                color = StageFg,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Start,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "Arraste pra cima ou baixo → menu",
-                color = StageFg,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Start,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Toque aqui pra fechar",
-                color = StageFgDim,
-                fontSize = 11.sp,
-                textAlign = TextAlign.Start,
-            )
-        }
-    }
-}
-
-@Composable
 private fun StageText(
     song: Song,
     fontSize: TextUnit,
@@ -676,13 +619,13 @@ private fun StageText(
     prefereFlat: Boolean,
     scrollState: ScrollState,
 ) {
-    // userScrollEnabled = false libera o drag vertical pra mostrar chrome.
-    // O auto-scroll programático segue funcionando porque escreve direto no
-    // scrollState.
+    // verticalScroll com gesto liberado: o usuário pode arrastar pra
+    // adiantar/voltar a rolagem; o auto-scroll continua a partir do offset
+    // atual (animateScrollBy escreve em scrollState.value que já está pós-drag).
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState, enabled = false)
+            .verticalScroll(scrollState)
             .padding(horizontal = 24.dp, vertical = 96.dp),
     ) {
         song.sections.forEachIndexed { index, section ->
@@ -791,7 +734,7 @@ private fun StagePdf(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState, enabled = false)
+                .verticalScroll(scrollState)
                 .padding(horizontal = 8.dp, vertical = 80.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

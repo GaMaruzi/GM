@@ -139,10 +139,20 @@ fun RepertoireEditorScreen(
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "Use \"Adicionar cifras\" pra montar o show.",
+                            "Adicione cifras pra montar o show.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 13.sp,
                         )
+                        Spacer(Modifier.height(20.dp))
+                        Button(
+                            onClick = onAddSongs,
+                            shape = RoundedCornerShape(12.dp),
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null,
+                                modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.size(6.dp))
+                            Text("Adicionar cifras", fontSize = 14.sp)
+                        }
                     }
                 }
             } else {

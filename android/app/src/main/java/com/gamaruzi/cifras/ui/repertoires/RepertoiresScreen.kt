@@ -71,6 +71,10 @@ import com.gamaruzi.cifras.ui.common.DEFAULT_ENTITY_COLOR_KEY
 import com.gamaruzi.cifras.ui.common.EntityColorPalette
 import com.gamaruzi.cifras.ui.common.entityColorByKey
 
+// Mesmo limite usado em pastas, pra manter a lista alinhada e o card do
+// repertório com nome legível sem ellipsis agressivo.
+internal const val REPERTOIRE_NAME_MAX_LEN = 20
+
 // Ordenação local da tela de repertórios (separada da home pra não
 // poluir SearchScreen.SortMode). Default = A→Z.
 private enum class RepSort(val label: String) {
@@ -388,7 +392,8 @@ private fun RepertoireDialog(
     LaunchedEffect(Unit) { fr.requestFocus() }
 
     val textoLimpo = texto.text.trim()
-    val mudou = textoLimpo.isNotEmpty() &&
+    val excedeu = textoLimpo.length > REPERTOIRE_NAME_MAX_LEN
+    val mudou = textoLimpo.isNotEmpty() && !excedeu &&
         (textoLimpo != nomeInicial || corSelecionada != corInicial)
 
     AlertDialog(
@@ -398,9 +403,19 @@ private fun RepertoireDialog(
             Column {
                 OutlinedTextField(
                     value = texto,
-                    onValueChange = { texto = it },
+                    onValueChange = { novo ->
+                        if (novo.text.length <= REPERTOIRE_NAME_MAX_LEN) texto = novo
+                    },
                     label = { Text("Nome") },
                     singleLine = true,
+                    isError = excedeu,
+                    supportingText = {
+                        Text(
+                            "${textoLimpo.length}/$REPERTOIRE_NAME_MAX_LEN caracteres",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth().focusRequester(fr),
                 )
                 Spacer(Modifier.height(14.dp))

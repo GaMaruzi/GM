@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -33,7 +34,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Stadium
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Refresh
@@ -269,22 +270,32 @@ fun DetailScreen(
                         }
                         Stepper(Icons.Filled.Add, "Tom acima") { semis++ }
                     }
+                    // Slot fixo (largura 112dp, altura 40dp) reservado pro
+                    // botão "↺ original". Visível só quando semis != 0; o
+                    // espaço continua reservado pra evitar "respiração" no
+                    // layout quando o usuário ajusta o tom.
                     Box(
                         modifier = Modifier
                             .padding(horizontal = 4.dp)
-                            .size(width = 40.dp, height = 40.dp),
-                        contentAlignment = Alignment.Center,
+                            .size(width = 112.dp, height = 40.dp),
+                        contentAlignment = Alignment.CenterStart,
                     ) {
                         if (semis != 0) {
-                            IconButton(
+                            TextButton(
                                 onClick = { semis = 0 },
-                                modifier = Modifier.size(36.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                modifier = Modifier.height(36.dp),
                             ) {
                                 Icon(
                                     Icons.Filled.Refresh,
-                                    contentDescription = "Voltar ao tom original",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Spacer(Modifier.size(4.dp))
+                                Text(
+                                    "original",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
                                 )
                             }
                         }
@@ -325,7 +336,7 @@ fun DetailScreen(
                 .padding(bottom = 24.dp),
         ) {
             Icon(
-                Icons.Filled.Mic,
+                Icons.Filled.Stadium,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
             )

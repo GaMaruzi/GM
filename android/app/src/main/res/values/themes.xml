@@ -2,11 +2,14 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!--
       Tema mínimo de platform para Activities Compose-only.
-      O visual real é controlado por CifrasTheme em ui/theme/Theme.kt.
+      windowBackground = verde do splash: cobre o gap entre o postSplashTheme
+      assumir a janela e o primeiro frame do Compose, eliminando o flash
+      branco. O visual real é controlado por CifrasTheme em ui/theme/Theme.kt.
     -->
     <style name="Theme.Cifras" parent="android:Theme.Material.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+        <item name="android:windowBackground">@color/splash_background</item>
     </style>
 
     <!--
@@ -15,9 +18,12 @@
       nativa, porque a API mascara o ícone em viewport circular e cortava
       o logo. Logo + slogan vêm pelo overlay Compose em MainActivity, com
       fade suave, garantindo aparência consistente em todas as APIs.
+      O windowBackground verde também é definido aqui para cobrir o "starting
+      window" do Android antes do splash em si.
     -->
     <style name="Theme.Cifras.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splash_background</item>
         <item name="postSplashScreenTheme">@style/Theme.Cifras</item>
+        <item name="android:windowBackground">@color/splash_background</item>
     </style>
 </resources>
