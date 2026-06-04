@@ -27,6 +27,8 @@ class UserPreferences(private val context: Context) {
     private val keySetlist = stringPreferencesKey("setlist_v1")
     private val keySpeeds = stringPreferencesKey("speeds_v1")
     private val keyFolders = stringSetPreferencesKey("folders_v1")
+    private val keyRepertoires = stringSetPreferencesKey("repertoires_v1")
+    private val keySetlistMigrated = booleanPreferencesKey("setlist_v1_migrated")
 
     val library: Flow<List<LibraryEntry>> = context.dataStore.data.map { prefs ->
         prefs[keyLibrary]
@@ -56,10 +58,6 @@ class UserPreferences(private val context: Context) {
         ScrollCodec.decode(prefs[keyScrollOffsets].orEmpty())
     }
 
-    val setlist: Flow<List<String>> = context.dataStore.data.map { prefs ->
-        SetlistCodec.decode(prefs[keySetlist].orEmpty())
-    }
-
     // Velocidade de auto-scroll por música no Stage Mode, em pixels/segundo.
     // 0 (ou ausente) = sem auto-scroll. Reusa ScrollCodec porque a estrutura
     // é idêntica (Map<URI, Int>).
@@ -73,6 +71,15 @@ class UserPreferences(private val context: Context) {
         prefs[keyFolders]
             .orEmpty()
             .mapNotNull(FolderCodec::decode)
+            .sortedBy { it.name.lowercase() }
+    }
+
+    // Repertórios criados pelo usuário. Ordenados pelo nome em lowercase.
+    // A migração do antigo setlist_v1 acontece sob demanda (ensureSetlistMigrated).
+    val repertoires: Flow<List<Repertoire>> = context.dataStore.data.map { prefs ->
+        prefs[keyRepertoires]
+            .orEmpty()
+            .mapNotNull(RepertoireCodec::decode)
             .sortedBy { it.name.lowercase() }
     }
 
@@ -131,6 +138,8 @@ class UserPreferences(private val context: Context) {
             prefs.remove(keySetlist)
             prefs.remove(keySpeeds)
             prefs.remove(keyFolders)
+            prefs.remove(keyRepertoires)
+            prefs.remove(keySetlistMigrated)
         }
     }
 
@@ -164,38 +173,85 @@ class UserPreferences(private val context: Context) {
         }
     }
 
-    suspend fun addToSetlist(songId: String) {
-        context.dataStore.edit { prefs ->
-            val atual = SetlistCodec.decode(prefs[keySetlist].orEmpty())
-            prefs[keySetlist] = SetlistCodec.encode(SetlistCodec.add(atual, songId))
-        }
-    }
+    // --- Repertórios ---
 
-    suspend fun removeFromSetlist(songId: String) {
+    // Roda 1x: se ainda não houver repertoires_v1 e existir um setlist_v1 com
+    // conteúdo, cria "Repertório padrão" com os mesmos songIds. Marca a flag
+    // setlist_v1_migrated pra não rodar de novo. O setlist antigo é apagado.
+    suspend fun ensureSetlistMigrated() {
         context.dataStore.edit { prefs ->
-            val atual = SetlistCodec.decode(prefs[keySetlist].orEmpty())
-            prefs[keySetlist] = SetlistCodec.encode(SetlistCodec.remove(atual, songId))
-        }
-    }
-
-    suspend fun moveSetlistUp(index: Int) {
-        context.dataStore.edit { prefs ->
-            val atual = SetlistCodec.decode(prefs[keySetlist].orEmpty())
-            prefs[keySetlist] = SetlistCodec.encode(SetlistCodec.moveUp(atual, index))
-        }
-    }
-
-    suspend fun moveSetlistDown(index: Int) {
-        context.dataStore.edit { prefs ->
-            val atual = SetlistCodec.decode(prefs[keySetlist].orEmpty())
-            prefs[keySetlist] = SetlistCodec.encode(SetlistCodec.moveDown(atual, index))
-        }
-    }
-
-    suspend fun clearSetlist() {
-        context.dataStore.edit { prefs ->
+            if (prefs[keySetlistMigrated] == true) return@edit
+            val antigaLista = SetlistCodec.decode(prefs[keySetlist].orEmpty())
+            if (antigaLista.isNotEmpty()) {
+                val rep = Repertoire(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = "Repertório padrão",
+                    songIds = antigaLista,
+                )
+                val atuais = prefs[keyRepertoires].orEmpty()
+                prefs[keyRepertoires] = atuais + RepertoireCodec.encode(rep)
+            }
             prefs.remove(keySetlist)
-            prefs.remove(keySpeeds)
+            prefs[keySetlistMigrated] = true
+        }
+    }
+
+    suspend fun addRepertoire(name: String): String {
+        val id = java.util.UUID.randomUUID().toString()
+        val rep = Repertoire(id = id, name = name.trim(), songIds = emptyList())
+        context.dataStore.edit { prefs ->
+            val atuais = prefs[keyRepertoires].orEmpty()
+            prefs[keyRepertoires] = atuais + RepertoireCodec.encode(rep)
+        }
+        return id
+    }
+
+    suspend fun renameRepertoire(id: String, novoNome: String) {
+        val nome = novoNome.trim()
+        if (nome.isBlank()) return
+        atualizaRepertoire(id) { it.copy(name = nome) }
+    }
+
+    suspend fun deleteRepertoire(id: String) {
+        context.dataStore.edit { prefs ->
+            prefs[keyRepertoires] = prefs[keyRepertoires].orEmpty()
+                .mapNotNull(RepertoireCodec::decode)
+                .filter { it.id != id }
+                .map(RepertoireCodec::encode)
+                .toSet()
+        }
+    }
+
+    suspend fun addSongToRepertoire(repertoireId: String, songId: String) {
+        atualizaRepertoire(repertoireId) { RepertoireCodec.addSong(it, songId) }
+    }
+
+    suspend fun addSongsToRepertoire(repertoireId: String, songIds: List<String>) {
+        if (songIds.isEmpty()) return
+        atualizaRepertoire(repertoireId) { RepertoireCodec.addSongs(it, songIds) }
+    }
+
+    suspend fun removeSongFromRepertoire(repertoireId: String, songId: String) {
+        atualizaRepertoire(repertoireId) { RepertoireCodec.removeSong(it, songId) }
+    }
+
+    suspend fun moveRepertoireSongUp(repertoireId: String, index: Int) {
+        atualizaRepertoire(repertoireId) { RepertoireCodec.moveUp(it, index) }
+    }
+
+    suspend fun moveRepertoireSongDown(repertoireId: String, index: Int) {
+        atualizaRepertoire(repertoireId) { RepertoireCodec.moveDown(it, index) }
+    }
+
+    private suspend fun atualizaRepertoire(id: String, fn: (Repertoire) -> Repertoire) {
+        context.dataStore.edit { prefs ->
+            val atuais = prefs[keyRepertoires].orEmpty().mapNotNull(RepertoireCodec::decode)
+            val achou = atuais.any { it.id == id }
+            if (!achou) return@edit
+            prefs[keyRepertoires] = atuais
+                .map { if (it.id == id) fn(it) else it }
+                .map(RepertoireCodec::encode)
+                .toSet()
         }
     }
 
@@ -284,10 +340,11 @@ class UserPreferences(private val context: Context) {
             if (scrollsLimpos.size != scrolls.size)
                 prefs[keyScrollOffsets] = ScrollCodec.encode(scrollsLimpos)
 
-            val setl = SetlistCodec.decode(prefs[keySetlist].orEmpty())
-            val setlLimpos = SetlistCodec.pruneOrphans(setl, urisValidas)
-            if (setlLimpos.size != setl.size)
-                prefs[keySetlist] = SetlistCodec.encode(setlLimpos)
+            val reps = prefs[keyRepertoires].orEmpty().mapNotNull(RepertoireCodec::decode)
+            val repsLimpos = reps.map { RepertoireCodec.pruneOrphans(it, urisValidas) }
+            if (repsLimpos != reps) {
+                prefs[keyRepertoires] = repsLimpos.map(RepertoireCodec::encode).toSet()
+            }
 
             val sp = ScrollCodec.decode(prefs[keySpeeds].orEmpty())
             val spLimpos = ScrollCodec.pruneOrphans(sp, urisValidas)

@@ -63,14 +63,11 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.gamaruzi.cifras.data.Line
 import com.gamaruzi.cifras.data.PdfPageRenderer
 import com.gamaruzi.cifras.data.Song
 import com.gamaruzi.cifras.data.SongFormat
-import com.gamaruzi.cifras.domain.Theory
-import com.gamaruzi.cifras.ui.AppState
 import com.gamaruzi.cifras.ui.common.findActivity
 import kotlinx.coroutines.delay
 
@@ -94,15 +91,11 @@ private const val CHROME_AUTO_HIDE_MS = 3200L
 private const val DICA_INICIAL_MS = 5000L
 
 @Composable
-fun StageScreen(appState: AppState, onBack: () -> Unit) {
-    val songs by appState.songs.collectAsStateWithLifecycle()
-    val setlist by appState.setlist.collectAsStateWithLifecycle()
-    val speeds by appState.speeds.collectAsStateWithLifecycle()
-
-    val musicas = remember(setlist, songs) {
-        setlist.mapNotNull { uri -> songs.firstOrNull { it.id == uri } }
-    }
-
+fun StageScreen(
+    musicas: List<Song>,
+    speeds: Map<String, Int>,
+    onBack: () -> Unit,
+) {
     SetupStageWindow()
 
     Box(modifier = Modifier.fillMaxSize().background(StageBg)) {
@@ -240,7 +233,7 @@ private fun StageVazio(onBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                "Setlist vazio",
+                "Sem músicas pra tocar",
                 color = StageFg,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Medium,

@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.gamaruzi.cifras.data.CifrasRepository
 import com.gamaruzi.cifras.data.Folder
 import com.gamaruzi.cifras.data.LibraryEntry
+import com.gamaruzi.cifras.data.Repertoire
 import com.gamaruzi.cifras.data.SizeLimits
 import com.gamaruzi.cifras.data.Song
 import com.gamaruzi.cifras.data.SongFormat
@@ -59,19 +60,22 @@ class AppState(application: Application) : AndroidViewModel(application) {
     val scrollOffsets: StateFlow<Map<String, Int>> = prefs.scrollOffsets
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
-    val setlist: StateFlow<List<String>> = prefs.setlist
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
     val speeds: StateFlow<Map<String, Int>> = prefs.speeds
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     val folders: StateFlow<List<Folder>> = prefs.folders
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val repertoires: StateFlow<List<Repertoire>> = prefs.repertoires
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     private val _lastAddResult = MutableStateFlow<AddResult?>(null)
     val lastAddResult: StateFlow<AddResult?> = _lastAddResult.asStateFlow()
 
     init {
+        // Migração 1x: setlist_v1 vira "Repertório padrão" no novo modelo.
+        viewModelScope.launch { prefs.ensureSetlistMigrated() }
+
         viewModelScope.launch {
             prefs.library.collect { entries ->
                 _loading.value = true
@@ -186,25 +190,43 @@ class AppState(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { prefs.saveScrollOffset(songId, offset) }
     }
 
-    fun addToSetlist(songId: String) {
-        viewModelScope.launch { prefs.addToSetlist(songId) }
+    fun createRepertoire(name: String, onCreated: (String) -> Unit = {}) {
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            val id = prefs.addRepertoire(name)
+            onCreated(id)
+        }
     }
 
-    fun removeFromSetlist(songId: String) {
-        viewModelScope.launch { prefs.removeFromSetlist(songId) }
+    fun renameRepertoire(id: String, novoNome: String) {
+        viewModelScope.launch { prefs.renameRepertoire(id, novoNome) }
     }
 
-    fun moveSetlistUp(index: Int) {
-        viewModelScope.launch { prefs.moveSetlistUp(index) }
+    fun deleteRepertoire(id: String) {
+        viewModelScope.launch { prefs.deleteRepertoire(id) }
     }
 
-    fun moveSetlistDown(index: Int) {
-        viewModelScope.launch { prefs.moveSetlistDown(index) }
+    fun addSongToRepertoire(repertoireId: String, songId: String) {
+        viewModelScope.launch { prefs.addSongToRepertoire(repertoireId, songId) }
     }
 
-    fun clearSetlist() {
-        viewModelScope.launch { prefs.clearSetlist() }
+    fun addSongsToRepertoire(repertoireId: String, songIds: List<String>) {
+        viewModelScope.launch { prefs.addSongsToRepertoire(repertoireId, songIds) }
     }
+
+    fun removeSongFromRepertoire(repertoireId: String, songId: String) {
+        viewModelScope.launch { prefs.removeSongFromRepertoire(repertoireId, songId) }
+    }
+
+    fun moveRepertoireSongUp(repertoireId: String, index: Int) {
+        viewModelScope.launch { prefs.moveRepertoireSongUp(repertoireId, index) }
+    }
+
+    fun moveRepertoireSongDown(repertoireId: String, index: Int) {
+        viewModelScope.launch { prefs.moveRepertoireSongDown(repertoireId, index) }
+    }
+
+    fun repertoire(id: String): Repertoire? = repertoires.value.firstOrNull { it.id == id }
 
     fun setSpeed(songId: String, pxPerSecond: Int) {
         viewModelScope.launch { prefs.setSpeed(songId, pxPerSecond) }

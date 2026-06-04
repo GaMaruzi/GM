@@ -18,8 +18,10 @@ import androidx.navigation.navArgument
 import com.gamaruzi.cifras.ui.AppState
 import com.gamaruzi.cifras.ui.detail.DetailScreen
 import com.gamaruzi.cifras.ui.empty.EmptyScreen
+import com.gamaruzi.cifras.ui.repertoires.AddSongsScreen
+import com.gamaruzi.cifras.ui.repertoires.RepertoireEditorScreen
+import com.gamaruzi.cifras.ui.repertoires.RepertoiresScreen
 import com.gamaruzi.cifras.ui.search.SearchScreen
-import com.gamaruzi.cifras.ui.setlist.SetlistScreen
 import com.gamaruzi.cifras.ui.settings.SettingsScreen
 import com.gamaruzi.cifras.ui.stage.StageScreen
 
@@ -27,14 +29,22 @@ object Rotas {
     const val EMPTY = "empty"
     const val SEARCH = "search"
     const val DETAIL = "detail/{songId}"
-    const val SETLIST = "setlist"
-    const val STAGE = "stage"
+    const val REPERTOIRES = "repertoires"
+    const val REPERTOIRE_EDITOR = "repertoire/{repId}"
+    const val ADD_SONGS = "repertoire/{repId}/add"
+    // Stage aceita repId OU songId — params opcionais via query string.
+    // Com repId: toca o repertório inteiro. Com songId: modo single-song.
+    const val STAGE = "stage?rep={repId}&song={songId}"
     const val SETTINGS = "settings"
 
     // Uri.encode codifica `/` `:` `%` e demais reservados. O Navigation Compose
     // decodifica via Uri.decode no caminho oposto — só uma camada de encode,
     // sem URLEncoder/URLDecoder em cima.
     fun detail(songId: String) = "detail/" + android.net.Uri.encode(songId)
+    fun repertoireEditor(repId: String) = "repertoire/" + android.net.Uri.encode(repId)
+    fun addSongs(repId: String) = "repertoire/" + android.net.Uri.encode(repId) + "/add"
+    fun stageRep(repId: String) = "stage?rep=" + android.net.Uri.encode(repId) + "&song="
+    fun stageSong(songId: String) = "stage?rep=&song=" + android.net.Uri.encode(songId)
 }
 
 @Composable
@@ -141,7 +151,7 @@ fun AppNavHost(appState: AppState = viewModel()) {
                 onRenameFolder = appState::renameFolder,
                 onDeleteFolder = appState::deleteFolder,
                 onMoveToFolder = appState::moveToFolder,
-                onStartStage = { navController.navigate(Rotas.SETLIST) },
+                onStartStage = { navController.navigate(Rotas.REPERTOIRES) },
             )
         }
 
@@ -170,21 +180,82 @@ fun AppNavHost(appState: AppState = viewModel()) {
                         appState.removeFromLibrary(song.id)
                         navController.popBackStack()
                     },
-                    onPlayStage = { navController.navigate(Rotas.STAGE) },
+                    onPlayStage = {
+                        navController.navigate(Rotas.stageSong(song.id))
+                    },
                 )
             }
         }
 
-        composable(Rotas.SETLIST) {
-            SetlistScreen(
+        composable(Rotas.REPERTOIRES) {
+            RepertoiresScreen(
                 appState = appState,
                 onBack = { navController.popBackStack() },
-                onStartStage = { navController.navigate(Rotas.STAGE) },
+                onOpenRepertoire = { id ->
+                    navController.navigate(Rotas.repertoireEditor(id))
+                },
             )
         }
 
-        composable(Rotas.STAGE) {
-            StageScreen(appState = appState, onBack = { navController.popBackStack() })
+        composable(
+            route = Rotas.REPERTOIRE_EDITOR,
+            arguments = listOf(navArgument("repId") { type = NavType.StringType }),
+        ) { entry ->
+            val repId = entry.arguments?.getString("repId") ?: return@composable
+            RepertoireEditorScreen(
+                appState = appState,
+                repertoireId = repId,
+                onBack = { navController.popBackStack() },
+                onAddSongs = { navController.navigate(Rotas.addSongs(repId)) },
+                onStartStage = {
+                    navController.navigate(Rotas.stageRep(repId))
+                },
+            )
+        }
+
+        composable(
+            route = Rotas.ADD_SONGS,
+            arguments = listOf(navArgument("repId") { type = NavType.StringType }),
+        ) { entry ->
+            val repId = entry.arguments?.getString("repId") ?: return@composable
+            AddSongsScreen(
+                appState = appState,
+                repertoireId = repId,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = Rotas.STAGE,
+            arguments = listOf(
+                navArgument("repId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("songId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+        ) { entry ->
+            val repId = entry.arguments?.getString("repId")?.takeIf { it.isNotEmpty() }
+            val songIdArg = entry.arguments?.getString("songId")?.takeIf { it.isNotEmpty() }
+            val musicas = remember(repId, songIdArg, songs) {
+                when {
+                    songIdArg != null -> songs.firstOrNull { it.id == songIdArg }?.let { listOf(it) }.orEmpty()
+                    repId != null -> appState.repertoire(repId)?.songIds
+                        ?.mapNotNull { id -> songs.firstOrNull { it.id == id } }.orEmpty()
+                    else -> emptyList()
+                }
+            }
+            val speeds by appState.speeds.collectAsStateWithLifecycle()
+            StageScreen(
+                musicas = musicas,
+                speeds = speeds,
+                onBack = { navController.popBackStack() },
+            )
         }
 
         composable(Rotas.SETTINGS) {
