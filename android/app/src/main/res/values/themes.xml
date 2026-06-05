@@ -12,16 +12,20 @@
     </style>
 
     <!--
-      Splash screen via androidx.core.splashscreen (Android 12+ nativo,
-      backport até API 28). O ícone branco aparece sobre o fundo verde
-      desde o primeiro frame da Activity. A safe zone circular da API
-      (~160dp interna num viewport 240dp) é respeitada pelo splash_logo.
-      Slogan vem pelo overlay Compose em MainActivity, instantâneo
-      (EnterTransition.None) — sem fade pra evitar atraso visual.
+      Splash screen via androidx.core.splashscreen.
+      windowSplashScreenAnimatedIcon = drawable transparente: a splash
+      nativa renderiza APENAS o fundo verde, sem ícone. O sistema (em
+      especial MIUI/HyperOS) anima a saída da splash nativa com
+      zoom/fade próprios, então mostrar o logo aqui causava efeito de
+      "duas telas separadas" (logo encolhe → some → reaparece grande +
+      slogan no overlay). Sem ícone nativo, o usuário vê fundo verde →
+      overlay Compose com logo+slogan já no tamanho final → tela inicial.
+      windowBackground também verde pra cobrir o intervalo entre a saída
+      da splash nativa e o primeiro frame Compose sem flash.
     -->
     <style name="Theme.Cifras.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splash_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_empty</item>
         <item name="postSplashScreenTheme">@style/Theme.Cifras</item>
         <item name="android:windowBackground">@color/splash_background</item>
     </style>

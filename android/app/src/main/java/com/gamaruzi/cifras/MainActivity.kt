@@ -1,12 +1,11 @@
 package com.gamaruzi.cifras
 
 import android.os.Bundle
-import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -42,28 +41,33 @@ import com.gamaruzi.cifras.ui.navigation.AppNavHost
 import com.gamaruzi.cifras.ui.theme.CifrasTheme
 import kotlinx.coroutines.delay
 
-// Tempo total mínimo da splash. A janela nativa exibe o logo + fundo verde
-// desde o primeiro frame; o overlay Compose monta por baixo com logo+slogan
-// e a nativa some revelando-o. OVERLAY_MIN_VISIBLE_MS garante tempo mínimo
-// de slogan visível mesmo em cold start lento onde elapsed > SPLASH_TOTAL_MS
-// quando o Compose finalmente roda — sem ele, o slogan sairia imediatamente.
-private const val SPLASH_TOTAL_MS = 1600L
-private const val OVERLAY_MIN_VISIBLE_MS = 900L
-private const val OVERLAY_FADE_IN_MS = 180
-private const val OVERLAY_FADE_OUT_MS = 400
+// Splash em UMA tela só:
+//
+//   [splash nativa = só fundo verde, sem ícone]──┐
+//        (Theme.Cifras.Splash com splash_empty)  │  cold start / boot Compose
+//                                                ▼
+//   [overlay Compose montado: logo grande +─────┐
+//    slogan, ambos visíveis juntos]             │  SPLASH_DISPLAY_MS
+//                                                ▼
+//   [fadeOut do overlay → Search]───────────────┐
+//        showOverlay = false                    │  OVERLAY_FADE_OUT_MS
+//                                                ▼
+//   [tela inicial]
+//
+// Como a splash nativa não tem mais ícone, não há "duas telas" (ícone
+// nativo separado do overlay). O usuário vê fundo verde por um instante
+// (cold start) e o overlay com logo+slogan aparece de uma vez, fica
+// visível e some suave revelando a Search.
+private const val SPLASH_DISPLAY_MS = 1800L
+private const val OVERLAY_FADE_OUT_MS = 500
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // installSplashScreen() precisa ser chamado antes de super.onCreate().
-        // A splash nativa cobre a janela com fundo verde + logo enquanto o
-        // Compose monta. O overlay Compose abaixo (SplashOverlay) garante que
-        // o slogan "Feito por músicos para músicos" fique visível por
-        // SPLASH_TOTAL_MS desde o início do processo.
-        val splashScreen = installSplashScreen()
-        val processStart = SystemClock.uptimeMillis()
-        var keepSplash = true
-        splashScreen.setKeepOnScreenCondition { keepSplash }
-
+        // Splash nativa é só fundo verde (windowSplashScreenAnimatedIcon =
+        // drawable transparente), então não tem ícone pra manter visível —
+        // o overlay Compose é a única tela com logo+slogan.
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
@@ -72,21 +76,10 @@ class MainActivity : ComponentActivity() {
             val themeMode by appState.themeMode.collectAsStateWithLifecycle()
             val dynamicColor by appState.dynamicColor.collectAsStateWithLifecycle()
 
-            // Mostra overlay Compose enquanto a duração total ainda não passou.
-            // Inicia true para evitar 1 frame de UI exposto antes do overlay
-            // se a splash nativa for descartada cedo (Android 12+ pode liberar
-            // a janela antes do nosso timer).
             var showOverlay by remember { mutableStateOf(true) }
 
             LaunchedEffect(Unit) {
-                val elapsed = SystemClock.uptimeMillis() - processStart
-                // coerceAtLeast(OVERLAY_MIN_VISIBLE_MS): mesmo em cold start
-                // onde elapsed já passou de SPLASH_TOTAL_MS, mantemos o
-                // overlay por pelo menos OVERLAY_MIN_VISIBLE_MS pra garantir
-                // logo+slogan visíveis juntos.
-                val restante = (SPLASH_TOTAL_MS - elapsed).coerceAtLeast(OVERLAY_MIN_VISIBLE_MS)
-                delay(restante)
-                keepSplash = false
+                delay(SPLASH_DISPLAY_MS)
                 showOverlay = false
             }
 
@@ -95,12 +88,11 @@ class MainActivity : ComponentActivity() {
                     AppNavHost(appState = appState)
                     AnimatedVisibility(
                         visible = showOverlay,
-                        // fadeIn curto (180ms): como o logo da nativa e o do
-                        // overlay estão na mesma posição/cor, o fade só faz
-                        // o slogan surgir suavemente junto do logo. Sem isso,
-                        // o slogan aparece "saltando" no momento em que a
-                        // splash nativa sai.
-                        enter = fadeIn(animationSpec = tween(durationMillis = OVERLAY_FADE_IN_MS)),
+                        // Sem fadeIn: o overlay já está renderizado desde
+                        // o primeiro frame, sobre o fundo verde da janela.
+                        // Quando o sistema termina a splash, o usuário já
+                        // está vendo logo+slogan estáveis.
+                        enter = EnterTransition.None,
                         exit = fadeOut(animationSpec = tween(durationMillis = OVERLAY_FADE_OUT_MS)),
                     ) {
                         SplashOverlay()
@@ -129,23 +121,21 @@ private fun SplashOverlay() {
                 painter = painterResource(id = R.drawable.splash_logo),
                 contentDescription = null,
                 tint = Color.White,
-                // 132dp dá folga visual; antes 180dp encostava no slogan
-                // em telas menores.
-                modifier = Modifier.size(132.dp),
+                modifier = Modifier.size(200.dp),
             )
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(28.dp))
             Text(
                 text = "Feito por músicos",
                 color = Color.White,
-                fontSize = 22.sp,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
             )
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "para músicos",
                 color = Color.White,
-                fontSize = 22.sp,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
             )
